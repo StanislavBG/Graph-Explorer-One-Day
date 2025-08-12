@@ -96,11 +96,6 @@ const matchRules = [
             fields: ["firstName", "addressLine1", "city", "country"],
             children: [],
           },
-          {
-            name: "Rule-14",
-            fields: ["lastName", "addressLine1", "city", "country"],
-            children: [],
-          },
         ],
       },
     ],
@@ -1038,65 +1033,107 @@ export default function GraphExplorer() {
                 </CardContent>
               </Card>
 
-              {/* Compact Match Rules Panel */}
+              {/* Enhanced Match Rules Panel */}
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-semibold text-gray-700">Match Rules Overview</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="space-y-1 text-xs text-gray-600">
-                    <div className="flex items-center gap-1">
-                      <span className="font-medium text-blue-600">Rule-1:</span>
-                      <span>Email-based matching</span>
+                  <div className="space-y-2 text-xs">
+                    {/* Rule-1: Email-based matching */}
+                    <div className="border-l-4 border-blue-500 pl-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                        <span className="font-semibold text-blue-700">Rule-1: Email-based matching</span>
+                      </div>
+                      <div className="ml-4 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-blue-400"></div>
+                          <span className="text-blue-600 font-medium">Rule-4: First+Last+Email</span>
+                        </div>
+                        <div className="ml-4 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-blue-300"></div>
+                            <span className="text-blue-500">Rule-5: First+Email</span>
+                          </div>
+                          <div className="ml-4">
+                            <div className="flex items-center gap-2">
+                              <div className="w-1 h-1 rounded-full bg-blue-200"></div>
+                              <span className="text-blue-400">Rule-7: Email only</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="ml-4 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-blue-300"></div>
+                            <span className="text-blue-500">Rule-6: Last+Email</span>
+                          </div>
+                          <div className="ml-4">
+                            <div className="flex items-center gap-2">
+                              <div className="w-1 h-1 rounded-full bg-blue-200"></div>
+                              <span className="text-blue-400">Rule-7: Email only</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 ml-3">
-                      <span className="text-gray-500">→ Rule-4: First+Last+Email</span>
+
+                    {/* Rule-2: Phone-based matching */}
+                    <div className="border-l-4 border-green-500 pl-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                        <span className="font-semibold text-green-700">Rule-2: Phone-based matching</span>
+                      </div>
+                      <div className="ml-4 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                          <span className="text-green-600 font-medium">Rule-8: First+Last+Phone</span>
+                        </div>
+                        <div className="ml-4 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-green-300"></div>
+                            <span className="text-green-500">Rule-9: First+Phone</span>
+                          </div>
+                          <div className="ml-4">
+                            <div className="flex items-center gap-2">
+                              <div className="w-1 h-1 rounded-full bg-green-200"></div>
+                              <span className="text-green-400">Rule-11: Phone only</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="ml-4 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-green-300"></div>
+                            <span className="text-green-500">Rule-10: Last+Phone</span>
+                          </div>
+                          <div className="ml-4">
+                            <div className="flex items-center gap-2">
+                              <div className="w-1 h-1 rounded-full bg-green-200"></div>
+                              <span className="text-green-400">Rule-11: Phone only</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 ml-6">
-                      <span className="text-gray-500">→ Rule-5: First+Email</span>
-                    </div>
-                    <div className="flex items-center gap-1 ml-6">
-                      <span className="text-gray-500">→ Rule-7: Email only</span>
-                    </div>
-                    <div className="flex items-center gap-1 ml-3">
-                      <span className="text-gray-500">→ Rule-6: Last+Email</span>
-                    </div>
-                    <div className="flex items-center gap-1 ml-6">
-                      <span className="text-gray-500">→ Rule-7: Email only</span>
-                    </div>
-                    
-                    <div className="flex items-center gap-1">
-                      <span className="font-medium text-green-600">Rule-2:</span>
-                      <span>Phone-based matching</span>
-                    </div>
-                    <div className="flex items-center gap-1 ml-3">
-                      <span className="text-gray-500">→ Rule-8: First+Last+Phone</span>
-                    </div>
-                    <div className="flex items-center gap-1 ml-6">
-                      <span className="text-gray-500">→ Rule-9: First+Phone</span>
-                    </div>
-                    <div className="flex items-center gap-1 ml-6">
-                      <span className="text-gray-500">→ Rule-11: Phone only</span>
-                    </div>
-                    <div className="flex items-center gap-1 ml-3">
-                      <span className="text-gray-500">→ Rule-10: Last+Phone</span>
-                    </div>
-                    <div className="flex items-center gap-1 ml-6">
-                      <span className="text-gray-500">→ Rule-11: Phone only</span>
-                    </div>
-                    
-                    <div className="flex items-center gap-1">
-                      <span className="font-medium text-purple-600">Rule-3:</span>
-                      <span>Address-based matching</span>
-                    </div>
-                    <div className="flex items-center gap-1 ml-3">
-                      <span className="text-gray-500">→ Rule-12: First+Last+Address</span>
-                    </div>
-                    <div className="flex items-center gap-1 ml-6">
-                      <span className="text-gray-500">→ Rule-13: First+Address</span>
-                    </div>
-                    <div className="flex items-center gap-1 ml-3">
-                      <span className="text-gray-500">→ Rule-14: Last+Address</span>
+
+                    {/* Rule-3: Address-based matching */}
+                    <div className="border-l-4 border-purple-500 pl-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                        <span className="font-semibold text-purple-700">Rule-3: Address-based matching</span>
+                      </div>
+                      <div className="ml-4 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-purple-400"></div>
+                          <span className="text-purple-600 font-medium">Rule-12: First+Last+Address</span>
+                        </div>
+                        <div className="ml-4 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-purple-300"></div>
+                            <span className="text-purple-500">Rule-13: First+Address</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
