@@ -1,9 +1,10 @@
-Record-Id,UUDI,Salutation,First Name,Middle Name,Last Name,Email
-id-001,uid-0001,Ms.,Eleanor,Grace,Vance,e.vance@example.com
-id-002,uid-0001,,Eleanor,Grace,Vance,e.vance@example.com
-id-003,uid-0001,,,Grace,Vance,e.vance@example.com
-id-004,uid-0001,,,,Vance,e.vance@example.com
-id-005,uid-0001,,,,,e.vance@example.com
-id-006,uid-0002,,,Jordan,Vance,e.vance@example.com
-id-007,uid-0002,,Casey,Jordan,Vance,e.vance@example.com
-id-008,uid-0002,Mr.,Casey,Jordan,Vance,e.vance@example.com
+Record-Id,UUDI,Salutation,First Name,Middle Name,Last Name,Email,Phone
+id-001,uid-0001,Ms.,Eleanor,Grace,Vance,e.vance@example.com, (650) 555-0111
+id-002,uid-0001,,Eleanor,Grace,Vance,e.vance@example.com, (650) 555-0111
+id-003,uid-0001,,,Grace,Vance,e.vance@example.com, (650) 555-0111
+id-004,uid-0001,,,,Vance,e.vance@example.com, (650) 555-0111
+id-005,uid-0001,,,,,e.vance@example.com, (650) 555-0111
+id-006,uid-0002,,,Jordan,Vance,e.vance@example.com, (650) 555-0111
+id-007,uid-0002,,"Casey","Jordan","Vance","e.vance@example.com", "(650) 555-0111"
+id-008,uid-0002,"Mr.","Casey",Jordan,Vance,"e.vance@example.com", "(650) 555-0111"
+id-009,uid-0003,"Ms.","Casey",Jordan,"Vance","e.vance@example.com", "(408) 111-0222"

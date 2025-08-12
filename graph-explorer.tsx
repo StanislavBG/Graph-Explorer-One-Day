@@ -1,7 +1,9 @@
 "use client"
 
+import React from "react"
 import { useState, useMemo, useRef, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import rawData from './data.json';
 
 interface NodeData {
   recordId: string
@@ -11,6 +13,7 @@ interface NodeData {
   middleName?: string
   lastName?: string
   email?: string
+  phone?: string
   x: number
   y: number
 }
@@ -21,89 +24,124 @@ interface Edge {
   type: "positive" | "negative"
   matchingFields: string[]
   nonMatchingFields: string[]
+  rulesUsed: string[][]
 }
 
-// Your final data with corrected mapping for id-007
-const rawData = [
+// --- Match Rule Structure ---
+// Each rule has: name, fields, children (for nested rules)
+const matchRules = [
   {
-    "Record-Id": "id-001",
-    UUDI: "uid-0001",
-    Salutation: "Ms.",
-    "First Name": "Eleanor",
-    "Middle Name": "Grace",
-    "Last Name": "Vance",
-    Email: "e.vance@example.com",
+    name: "Rule-1",
+    fields: ["salutation", "firstName", "lastName", "email"],
+    children: [
+      {
+        name: "Rule-4",
+        fields: ["firstName", "lastName", "email"],
+        children: [
+          {
+            name: "Rule-5",
+            fields: ["firstName", "email"],
+            children: [
+              { name: "Rule-7", fields: ["email"], children: [] },
+            ],
+          },
+          {
+            name: "Rule-6",
+            fields: ["lastName", "email"],
+            children: [
+              { name: "Rule-7", fields: ["email"], children: [] },
+            ],
+          },
+        ],
+      },
+    ],
   },
   {
-    "Record-Id": "id-002",
-    UUDI: "uid-0001",
-    Salutation: null,
-    "First Name": "Eleanor",
-    "Middle Name": "Grace",
-    "Last Name": "Vance",
-    Email: "e.vance@example.com",
+    name: "Rule-2",
+    fields: ["salutation", "firstName", "lastName", "phone"],
+    children: [],
   },
   {
-    "Record-Id": "id-003",
-    UUDI: "uid-0001",
-    Salutation: null,
-    "First Name": null,
-    "Middle Name": "Grace",
-    "Last Name": "Vance",
-    Email: "e.vance@example.com",
-  },
-  {
-    "Record-Id": "id-004",
-    UUDI: "uid-0001",
-    Salutation: null,
-    "First Name": null,
-    "Middle Name": null,
-    "Last Name": "Vance",
-    Email: "e.vance@example.com",
-  },
-  {
-    "Record-Id": "id-005",
-    UUDI: "uid-0001",
-    Salutation: null,
-    "First Name": null,
-    "Middle Name": null,
-    "Last Name": null,
-    Email: "e.vance@example.com",
-  },
-  {
-    "Record-Id": "id-006",
-    UUDI: "uid-0002",
-    Salutation: null,
-    "First Name": null,
-    "Middle Name": "Jordan",
-    "Last Name": "Vance",
-    Email: "e.vance@example.com",
-  },
-  {
-    "Record-Id": "id-007",
-    UUDI: "uid-0002",
-    Salutation: "Casey",
-    "First Name": "Jordan",
-    "Middle Name": "Vance",
-    "Last Name": "e.vance@example.com",
-    Email: null,
-  },
-  {
-    "Record-Id": "id-008",
-    UUDI: "uid-0002",
-    Salutation: "Mr.",
-    "First Name": "Casey",
-    "Middle Name": "Jordan",
-    "Last Name": "Vance",
-    Email: "e.vance@example.com",
+    name: "Rule-3",
+    fields: ["salutation", "firstName", "lastName", "addressLine1", "city", "country"],
+    children: [],
   },
 ]
+
+// --- Types for Match Rules ---
+type MatchRule = {
+  name: string;
+  fields: string[];
+  children: MatchRule[];
+};
+
+type RuleEvalResult =
+  | { status: "positive" | "negative"; matchingFields: string[]; nonMatchingFields: string[]; rulesUsed: string[][] }
+  | { status: "unknown"; rulesUsed: string[][] };
+
+// --- Rule Evaluation (OR logic for all children, returns all paths) ---
+function evaluateRuleAll(rule: MatchRule, node1: any, node2: any, path: string[] = []): RuleEvalResult[] {
+  // Check if all fields are present in both nodes
+  const missing = rule.fields.filter(f => node1[f] == null || node2[f] == null)
+  if (missing.length > 0) {
+    // Not enough data, try all children (OR logic)
+    let results: RuleEvalResult[] = []
+    let unknownPaths: string[][] = []
+    for (const child of rule.children || []) {
+      const childResults = evaluateRuleAll(child, node1, node2, [...path, rule.name])
+      // Collect all non-unknowns for results
+      results = results.concat(childResults.filter(r => r.status !== "unknown"))
+      // Collect all unknown paths
+      unknownPaths = unknownPaths.concat(childResults.filter(r => r.status === "unknown").flatMap(r => r.rulesUsed))
+    }
+    if (results.length > 0) {
+      return results
+    }
+    if (unknownPaths.length > 0) {
+      return unknownPaths.map(p => ({ status: "unknown", rulesUsed: [p] }))
+    }
+    return [{ status: "unknown", rulesUsed: [[...path, rule.name]] }]
+  }
+  // All fields present, compare
+  const matchingFields = []
+  const nonMatchingFields = []
+  for (const f of rule.fields) {
+    if ((node1[f] || "").toLowerCase() === (node2[f] || "").toLowerCase()) {
+      matchingFields.push(f)
+    } else {
+      nonMatchingFields.push(f)
+    }
+  }
+  if (nonMatchingFields.length === 0) {
+    return [{ status: "positive", matchingFields, nonMatchingFields, rulesUsed: [[...path, rule.name]] }]
+  } else {
+    return [{ status: "negative", matchingFields, nonMatchingFields, rulesUsed: [[...path, rule.name]] }]
+  }
+}
+
+// Recursive component to render all match rules and their children
+function RenderMatchRules({ rules, level = 0 }: { rules: MatchRule[]; level?: number }) {
+  return (
+    <div>
+      {rules.map((rule) => (
+        <div key={rule.name} style={{ marginLeft: level * 16 }}>
+          <span className={`font-semibold ${level === 0 ? 'text-gray-800' : level === 1 ? 'text-gray-700' : 'text-gray-500'}`}>{rule.name}:</span>
+          <span className={`ml-1 ${level === 0 ? 'text-gray-600' : level === 1 ? 'text-gray-500' : 'text-gray-400'}`}>{rule.fields.join(', ')}</span>
+          {rule.children && rule.children.length > 0 && (
+            <RenderMatchRules rules={rule.children} level={level + 1} />
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export default function GraphExplorer() {
   const [hoveredNode, setHoveredNode] = useState<NodeData | null>(null)
   const [hoveredEdge, setHoveredEdge] = useState<Edge | null>(null)
   const [selectedNode, setSelectedNode] = useState<NodeData | null>(null)
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
+  const [showRuleModal, setShowRuleModal] = useState(false)
 
   // For dynamic sizing
   const svgRef = useRef<SVGSVGElement | null>(null)
@@ -127,21 +165,7 @@ export default function GraphExplorer() {
   const radius = Math.min(svgSize.width, svgSize.height) * 0.425 // ~85% diameter of the SVG area
 
   // Transform raw data to our format with positioning
-  const nodeData: NodeData[] = useMemo(() => rawData.map((item, index) => {
-    // Special handling for id-007 which has shifted data
-    if (item["Record-Id"] === "id-007") {
-      return {
-        recordId: item["Record-Id"],
-        uuid: item["UUDI"],
-        salutation: undefined, // Original: "Casey" but this seems to be shifted
-        firstName: item["Salutation"] || undefined, // "Casey" - appears to be the actual first name
-        middleName: item["First Name"] || undefined, // "Jordan" - appears to be the actual middle name
-        lastName: item["Middle Name"] || undefined, // "Vance" - appears to be the actual last name
-        email: item["Last Name"] || undefined, // "e.vance@example.com" - appears to be the actual email
-        x: centerX + radius * Math.cos((index * 2 * Math.PI) / rawData.length),
-        y: centerY + radius * Math.sin((index * 2 * Math.PI) / rawData.length),
-      }
-    }
+  const nodeData: NodeData[] = useMemo(() => rawData.map((item: any, index: number) => {
     // Normal mapping for all other records
     return {
       recordId: item["Record-Id"],
@@ -151,64 +175,57 @@ export default function GraphExplorer() {
       middleName: item["Middle Name"] || undefined,
       lastName: item["Last Name"] || undefined,
       email: item["Email"] || undefined,
+      phone: item["Phone"] || undefined,
       x: centerX + radius * Math.cos((index * 2 * Math.PI) / rawData.length),
       y: centerY + radius * Math.sin((index * 2 * Math.PI) / rawData.length),
     }
   }), [centerX, centerY, radius])
 
-  // Generate all edges automatically
+  // Generate all edges using match rules (OR logic, all rule paths)
   const edges = useMemo(() => {
-    const edgeList: Edge[] = []
-    const fieldsToCompare = ["salutation", "firstName", "middleName", "lastName", "email"]
-
+    const edgeMap = new Map<string, Edge>()
     for (let i = 0; i < nodeData.length; i++) {
       for (let j = i + 1; j < nodeData.length; j++) {
         const node1 = nodeData[i]
         const node2 = nodeData[j]
-
-        const matchingFields: string[] = []
-        const nonMatchingFields: string[] = []
-
-        fieldsToCompare.forEach((field) => {
-          const value1 = node1[field as keyof NodeData]
-          const value2 = node2[field as keyof NodeData]
-
-          // Only compare if both values exist and are not empty
-          if (value1 && value2) {
-            if (value1 === value2) {
-              matchingFields.push(field)
-            } else {
-              nonMatchingFields.push(field)
-            }
-          }
-        })
-
-        // Create positive edge if there are matching fields
-        if (matchingFields.length > 0) {
-          edgeList.push({
-            from: node1.recordId,
-            to: node2.recordId,
-            type: "positive",
-            matchingFields,
-            nonMatchingFields: [],
-          })
+        // Evaluate all top-level rules (OR logic)
+        let allResults: RuleEvalResult[] = []
+        for (const rule of matchRules) {
+          allResults = allResults.concat(evaluateRuleAll(rule, node1, node2))
         }
-
-        // Create negative edge if there are non-matching fields
-        if (nonMatchingFields.length > 0) {
-          edgeList.push({
-            from: node1.recordId,
-            to: node2.recordId,
-            type: "negative",
-            matchingFields: [],
-            nonMatchingFields,
-          })
+        // Group by type and matching/nonMatching fields
+        const grouped: { [key: string]: { matchingFields: string[], nonMatchingFields: string[], rulesUsed: string[][] } } = {}
+        for (const result of allResults) {
+          if (result.status === "positive" || result.status === "negative") {
+            const key = result.status + '|' + (result.matchingFields || []).join(',') + '|' + (result.nonMatchingFields || []).join(',')
+            if (!grouped[key]) {
+              grouped[key] = {
+                matchingFields: result.matchingFields,
+                nonMatchingFields: result.nonMatchingFields,
+                rulesUsed: [],
+              }
+            }
+            grouped[key].rulesUsed.push(...(result.rulesUsed as string[][]))
+          }
+        }
+        for (const key in grouped) {
+          const [type] = key.split('|')
+          edgeMap.set(
+            node1.recordId + '-' + node2.recordId + '-' + key,
+            {
+              from: node1.recordId,
+              to: node2.recordId,
+              type: type as 'positive' | 'negative',
+              matchingFields: grouped[key].matchingFields,
+              nonMatchingFields: grouped[key].nonMatchingFields,
+              rulesUsed: grouped[key].rulesUsed,
+            }
+          )
         }
       }
     }
-
-    return edgeList
-  }, [])
+    return Array.from(edgeMap.values())
+  }, [nodeData])
 
   const handleNodeHover = (node: NodeData) => {
     setHoveredNode(node)
@@ -395,6 +412,21 @@ export default function GraphExplorer() {
     return colors[index % colors.length]
   }
 
+  // Helper to get rule fields by rule name
+  function getRuleFields(ruleName: string): string[] {
+    function findRule(rules: MatchRule[]): string[] | null {
+      for (const rule of rules) {
+        if (rule.name === ruleName) return rule.fields
+        if (rule.children && rule.children.length > 0) {
+          const found = findRule(rule.children)
+          if (found) return found
+        }
+      }
+      return null
+    }
+    return findRule(matchRules) || []
+  }
+
   return (
     <div className="w-full h-screen bg-gray-50 flex">
       {/* Left Panel - Legend and Controls */}
@@ -530,7 +562,19 @@ export default function GraphExplorer() {
       <div className="flex-1 relative flex flex-col">
         {/* Graph area with fixed height */}
         <div className="relative" style={{ height: '62vh', minHeight: 350 }}>
-          <svg ref={svgRef} width="100%" height="100%" className="cursor-crosshair">
+          <svg
+            ref={svgRef}
+            width="100%"
+            height="100%"
+            className="cursor-crosshair"
+            onClick={(e) => {
+              // Only clear selection if the click target is the SVG itself (not a node or edge)
+              if (e.target === svgRef.current) {
+                setSelectedNode(null);
+                setSelectedEdge(null);
+              }
+            }}
+          >
             {/* Render edges first so they appear behind nodes */}
             {edges.map((edge, index) => {
               const fromNode = getNodeByRecordId(edge.from)
@@ -547,15 +591,22 @@ export default function GraphExplorer() {
                 (hoveredNode || selectedNode) &&
                 (edge.from === (hoveredNode || selectedNode)?.recordId || edge.to === (hoveredNode || selectedNode)?.recordId)
 
-              const shouldPop = isHovered || isSelected || isConnectedToNode
+              let edgeOpacity = 1
+              if (isHovered || isSelected || isConnectedToNode) {
+                edgeOpacity = 1
+              } else if (hoveredNode || selectedNode) {
+                edgeOpacity = 0.15 // much dimmer for non-connected edges
+              } else {
+                edgeOpacity = 0.7 // default
+              }
 
               return (
                 <path
                   key={`${edge.from}-${edge.to}-${edge.type}-${index}`}
                   d={pathData}
                   stroke={edge.type === "positive" ? "#10b981" : "#ef4444"}
-                  strokeWidth={shouldPop ? 4 : 2}
-                  opacity={shouldPop ? 1 : 0.7}
+                  strokeWidth={(isHovered || isSelected || isConnectedToNode) ? 4 : 2}
+                  opacity={edgeOpacity}
                   fill="none"
                   strokeDasharray={edge.type === "negative" ? "5,5" : "none"}
                   className="cursor-pointer transition-all duration-200"
@@ -611,6 +662,7 @@ export default function GraphExplorer() {
                 <th className="px-2 py-1 border">Middle Name</th>
                 <th className="px-2 py-1 border">Last Name</th>
                 <th className="px-2 py-1 border">Email</th>
+                <th className="px-2 py-1 border">Phone</th>
               </tr>
             </thead>
             <tbody>
@@ -628,6 +680,7 @@ export default function GraphExplorer() {
                   <td className="px-2 py-1 border">{node.middleName || "—"}</td>
                   <td className="px-2 py-1 border">{node.lastName || "—"}</td>
                   <td className="px-2 py-1 border break-all">{node.email || "—"}</td>
+                  <td className="px-2 py-1 border">{node.phone || "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -635,13 +688,13 @@ export default function GraphExplorer() {
         </div>
       </div>
 
-      {/* Right Panel - Record Details */}
+      {/* Right Panel - Match Details */}
       <div className="w-80 bg-white border-l border-gray-200 p-6 overflow-y-auto">
         <div className="space-y-6">
           {/* Header */}
           <div>
-            <h2 className="text-xl font-bold text-gray-800">Record Details</h2>
-            <p className="text-gray-600 mt-1">
+            <h2 className="text-xl font-bold text-gray-800">Match Details</h2>
+            <p className="text-gray-500 mt-1 text-xs">
               {selectedNode || selectedEdge || hoveredNode || hoveredEdge
                 ? "Click or hover to explore"
                 : "Click or hover on nodes/edges"}
@@ -714,22 +767,74 @@ export default function GraphExplorer() {
                     const posEdges = edges.filter(e => (e.from === node.recordId || e.to === node.recordId) && e.type === "positive")
                     const negEdges = edges.filter(e => (e.from === node.recordId || e.to === node.recordId) && e.type === "negative")
                     const getOther = (e: Edge) => e.from === node.recordId ? e.to : e.from
+                    // Helper to render rule paths as styled boxes/arrows, with wrapping
+                    const renderRulePath = (rulePath: string[], status: string) => (
+                      <div className="flex flex-row flex-wrap items-center space-x-1 break-all whitespace-normal w-full">
+                        {rulePath.map((rule, i) => {
+                          const isLast = i === rulePath.length - 1
+                          let className = 'px-1.5 py-0.5 rounded font-semibold text-[9px]'
+                          if (status === 'unknown') {
+                            className += ' bg-gray-200 text-gray-500'
+                          } else if (isLast) {
+                            className += status === 'positive'
+                              ? ' bg-green-100 text-green-700'
+                              : ' bg-red-100 text-red-700'
+                          } else {
+                            className += ' bg-gray-100 text-gray-600'
+                          }
+                          return (
+                            <React.Fragment key={rule + '-' + i}>
+                              <span
+                                className={className}
+                                style={{ minWidth: 44, textAlign: 'center', display: 'inline-block' }}
+                                title={`Rule: ${rule}`}
+                              >
+                                {rule}
+                              </span>
+                              {i < rulePath.length - 1 && (
+                                <span className="text-gray-400 text-[12px] font-bold mx-0.5" style={{ verticalAlign: 'middle' }}>→</span>
+                              )}
+                            </React.Fragment>
+                          )
+                        })}
+                      </div>
+                    )
                     return (
                       <div className="space-y-1">
                         <div>
                           <span className="font-medium text-green-700">Positive:</span> {posEdges.length}
                           {posEdges.length > 0 && (
-                            <span className="ml-2">[
-                              {posEdges.map(getOther).join(", ")}
-                            ]</span>
+                            <div className="ml-2 flex flex-col space-y-1 w-full">
+                              {posEdges.map((e, i) => (
+                                <div key={e.from + e.to + e.rulesUsed.join('-') + '-' + i} className="flex flex-col items-start w-full">
+                                  <span className="font-mono mr-1">{getOther(e)}</span>
+                                  {/* Render all rule paths for this edge, each on its own line */}
+                                  {e.rulesUsed.map((rulePath, idx) => (
+                                    <div key={rulePath.join('-') + '-' + idx} className="w-full">
+                                      {renderRulePath(rulePath, e.type)}
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
                           )}
                         </div>
                         <div>
                           <span className="font-medium text-red-700">Negative:</span> {negEdges.length}
                           {negEdges.length > 0 && (
-                            <span className="ml-2">[
-                              {negEdges.map(getOther).join(", ")}
-                            ]</span>
+                            <div className="ml-2 flex flex-col space-y-1 w-full">
+                              {negEdges.map((e, i) => (
+                                <div key={e.from + e.to + e.rulesUsed.join('-') + '-' + i} className="flex flex-col items-start w-full">
+                                  <span className="font-mono mr-1">{getOther(e)}</span>
+                                  {/* Render all rule paths for this edge, each on its own line */}
+                                  {e.rulesUsed.map((rulePath, idx) => (
+                                    <div key={rulePath.join('-') + '-' + idx} className="w-full">
+                                      {renderRulePath(rulePath, e.type)}
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
                           )}
                         </div>
                       </div>
@@ -740,91 +845,121 @@ export default function GraphExplorer() {
             </Card>
           )}
 
-          {/* Edge Details */}
+          {/* Match Rules Evaluation Panel */}
           {(selectedEdge || hoveredEdge) && (
-            <Card className="border-2 border-green-200">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <div
-                    className="w-4 h-1 rounded"
-                    style={{
-                      backgroundColor: (selectedEdge || hoveredEdge)!.type === "positive" ? "#10b981" : "#ef4444",
-                    }}
-                  />
-                  {(selectedEdge || hoveredEdge)!.from} ↔ {(selectedEdge || hoveredEdge)!.to}
-                  {selectedEdge && <span className="text-sm font-normal text-gray-500">(Selected)</span>}
-                </CardTitle>
+            <Card className="mb-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-semibold text-gray-700">Match Rules Evaluation</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="text-sm">
-                  <span className="font-medium text-gray-600">Edge Type: </span>
-                  <span
-                    className={`font-semibold ${
-                      (selectedEdge || hoveredEdge)!.type === "positive" ? "text-green-600" : "text-red-600"
-                    }`}
-                  >
-                    {(selectedEdge || hoveredEdge)!.type === "positive" ? "Positive" : "Negative"}
-                  </span>
-                </div>
-
-                {(selectedEdge || hoveredEdge)!.matchingFields.length > 0 && (
-                  <div>
-                    <div className="font-medium text-green-600 text-sm mb-2">Matching Fields:</div>
-                    <div className="flex flex-wrap gap-1">
-                      {(selectedEdge || hoveredEdge)!.matchingFields.map((field) => (
-                        <span key={field} className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
-                          {field}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {(selectedEdge || hoveredEdge)!.nonMatchingFields.length > 0 && (
-                  <div>
-                    <div className="font-medium text-red-600 text-sm mb-2">Non-matching Fields:</div>
-                    <div className="flex flex-wrap gap-1">
-                      {(selectedEdge || hoveredEdge)!.nonMatchingFields.map((field) => (
-                        <span key={field} className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded">
-                          {field}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Show the actual values being compared */}
-                <hr className="my-3" />
-                <div className="text-xs text-gray-600">
-                  <div className="font-medium mb-2">Field Comparison:</div>
-                  {["salutation", "firstName", "middleName", "lastName", "email"].map((field) => {
-                    const fromNode = getNodeByRecordId((selectedEdge || hoveredEdge)!.from)
-                    const toNode = getNodeByRecordId((selectedEdge || hoveredEdge)!.to)
-                    const fromValue = fromNode?.[field as keyof NodeData] || "—"
-                    const toValue = toNode?.[field as keyof NodeData] || "—"
-                    const isMatching = fromValue !== "—" && toValue !== "—" && fromValue === toValue
-                    const isDifferent = fromValue !== "—" && toValue !== "—" && fromValue !== toValue
-
-                    return (
-                      <div key={field} className="flex justify-between py-1">
-                        <span className="capitalize">{field}:</span>
-                        <span
-                          className={`text-xs ${
-                            isMatching ? "text-green-600" : isDifferent ? "text-red-600" : "text-gray-400"
-                          }`}
-                        >
-                          {fromValue} | {toValue}
-                        </span>
+              <CardContent className="pt-0">
+                <div className="flex flex-col space-y-1 text-[9px] text-gray-700">
+                  {/* Show all rule paths, including unknowns */}
+                  {(() => {
+                    const edge = selectedEdge || hoveredEdge
+                    if (!edge) return null
+                    // Re-evaluate all rules to get all paths, including unknowns
+                    const node1 = getNodeByRecordId(edge.from)
+                    const node2 = getNodeByRecordId(edge.to)
+                    if (!node1 || !node2) return null
+                    let allResults: RuleEvalResult[] = []
+                    for (const rule of matchRules) {
+                      allResults = allResults.concat(evaluateRuleAll(rule, node1, node2))
+                    }
+                    return allResults.map((result, idx) => (
+                      <div key={result.rulesUsed[0].join('-') + '-' + idx} className="flex flex-row items-center space-x-1">
+                        {result.rulesUsed[0].map((rule: string, i: number) => {
+                          // Consistent path styling: all segments gray for unknown, else only last colored
+                          const isLast = i === result.rulesUsed[0].length - 1
+                          let className = 'px-1.5 py-0.5 rounded font-semibold'
+                          if (result.status === 'unknown') {
+                            className += ' bg-gray-200 text-gray-500'
+                          } else if (isLast) {
+                            className += result.status === 'positive'
+                              ? ' bg-green-100 text-green-700'
+                              : ' bg-red-100 text-red-700'
+                          } else {
+                            className += ' bg-gray-100 text-gray-600'
+                          }
+                          return (
+                            <React.Fragment key={rule + '-' + i}>
+                              <span
+                                className={className}
+                                style={{ minWidth: 44, textAlign: 'center', display: 'inline-block' }}
+                                title={`Rule: ${rule} - compares ${getRuleFields(rule).join(', ')}`}
+                              >
+                                {rule}
+                              </span>
+                              {i < result.rulesUsed[0].length - 1 && (
+                                <span className="text-gray-400 text-[12px] font-bold mx-0.5" style={{ verticalAlign: 'middle' }}>→</span>
+                              )}
+                            </React.Fragment>
+                          )
+                        })}
                       </div>
-                    )
-                  })}
+                    ))
+                  })()}
                 </div>
               </CardContent>
             </Card>
           )}
 
-          {/* Instructions */}
-          {!selectedNode && !selectedEdge && !hoveredNode && !hoveredEdge && (
+          {/* Match Rules Panel (moved directly under Match Rules Evaluation) */}
+          {(selectedEdge || hoveredEdge) && (
+            <Card className="mb-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-semibold text-gray-700">Match Rules</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs">
+                <RenderMatchRules rules={matchRules} />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Edge Details */}
+          {(selectedEdge || hoveredEdge) && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <div
+                    className="w-4 h-1 rounded"
+                    style={{ backgroundColor: '#d1d5db' }}
+                  />
+                  {(selectedEdge || hoveredEdge)!.from} ↔ {(selectedEdge || hoveredEdge)!.to}
+                  {selectedEdge && <span className="text-sm font-normal text-gray-400">(Selected)</span>}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {/* Show the actual values being compared */}
+                <hr className="my-3" />
+                <div className="text-xs text-gray-400">
+                  <div className="font-medium mb-2">Field Comparison:</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="font-semibold">Field</div>
+                    <div className="font-semibold">Value 1</div>
+                    <div className="font-semibold">Value 2</div>
+                    {['salutation', 'firstName', 'middleName', 'lastName', 'email', 'phone'].map((field) => {
+                      const fromNode = getNodeByRecordId((selectedEdge || hoveredEdge)!.from)
+                      const toNode = getNodeByRecordId((selectedEdge || hoveredEdge)!.to)
+                      const fromValue = fromNode?.[field as keyof NodeData] || "—"
+                      const toValue = toNode?.[field as keyof NodeData] || "—"
+                      const isMatching = fromValue !== "—" && toValue !== "—" && fromValue === toValue
+                      const isDifferent = fromValue !== "—" && toValue !== "—" && fromValue !== toValue
+                      return (
+                        <div key={field} className="contents">
+                          <div className="capitalize py-1">{field}:</div>
+                          <div className={`py-1 ${isMatching ? 'text-green-400' : isDifferent ? 'text-red-400' : 'text-gray-300'}`}>{fromValue}</div>
+                          <div className={`py-1 ${isMatching ? 'text-green-400' : isDifferent ? 'text-red-400' : 'text-gray-300'}`}>{toValue}</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Instructions Panel (show only if nothing is selected) */}
+          {!(selectedNode || selectedEdge || hoveredNode || hoveredEdge) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg">Instructions</CardTitle>
