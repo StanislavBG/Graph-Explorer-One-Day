@@ -3,6 +3,7 @@
 import React from "react"
 import { useState, useMemo, useRef, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+// Import data directly - Next.js will handle this for static export
 import rawData from './data.json';
 
 interface NodeData {
@@ -143,9 +144,12 @@ export default function GraphExplorer() {
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
   const [showRuleModal, setShowRuleModal] = useState(false)
 
+
   // For dynamic sizing
   const svgRef = useRef<SVGSVGElement | null>(null)
   const [svgSize, setSvgSize] = useState({ width: 800, height: 600 })
+
+
 
   useEffect(() => {
     function updateSize() {

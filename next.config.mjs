@@ -12,6 +12,8 @@ const nextConfig = {
   output: 'export',
   trailingSlash: true,
   basePath: process.env.NODE_ENV === 'production' ? '/Graph-Explorer-One-Day' : '',
+  assetPrefix: process.env.NODE_ENV === 'production' ? '/Graph-Explorer-One-Day' : '',
+
 }
 
 export default nextConfig
