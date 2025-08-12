@@ -1016,26 +1016,92 @@ export default function GraphExplorer() {
 
           {/* Instructions Panel (show only if nothing is selected) */}
           {!(selectedNode || selectedEdge || hoveredNode || hoveredEdge) && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Instructions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm text-gray-600">
-                <p>
-                  • <strong>Hover</strong> over nodes or edges to see details
-                </p>
-                <p>
-                  • <strong>Click</strong> on nodes or edges to pin details
-                </p>
-                <p>
-                  • <strong>Green edges</strong> show matching fields
-                </p>
-                <p>
-                  • <strong>Red dashed edges</strong> show different fields
-                </p>
-                <p>• Node colors represent different UUDI groups</p>
-              </CardContent>
-            </Card>
+            <>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">Instructions</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm text-gray-600">
+                  <p>
+                    • <strong>Hover</strong> over nodes or edges to see details
+                  </p>
+                  <p>
+                    • <strong>Click</strong> on nodes or edges to pin details
+                  </p>
+                  <p>
+                    • <strong>Green edges</strong> show matching fields
+                  </p>
+                  <p>
+                    • <strong>Red dashed edges</strong> show different fields
+                  </p>
+                  <p>• Node colors represent different UUDI groups</p>
+                </CardContent>
+              </Card>
+
+              {/* Compact Match Rules Panel */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold text-gray-700">Match Rules Overview</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="space-y-1 text-xs text-gray-600">
+                    <div className="flex items-center gap-1">
+                      <span className="font-medium text-blue-600">Rule-1:</span>
+                      <span>Email-based matching</span>
+                    </div>
+                    <div className="flex items-center gap-1 ml-3">
+                      <span className="text-gray-500">→ Rule-4: First+Last+Email</span>
+                    </div>
+                    <div className="flex items-center gap-1 ml-6">
+                      <span className="text-gray-500">→ Rule-5: First+Email</span>
+                    </div>
+                    <div className="flex items-center gap-1 ml-6">
+                      <span className="text-gray-500">→ Rule-7: Email only</span>
+                    </div>
+                    <div className="flex items-center gap-1 ml-3">
+                      <span className="text-gray-500">→ Rule-6: Last+Email</span>
+                    </div>
+                    <div className="flex items-center gap-1 ml-6">
+                      <span className="text-gray-500">→ Rule-7: Email only</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-1">
+                      <span className="font-medium text-green-600">Rule-2:</span>
+                      <span>Phone-based matching</span>
+                    </div>
+                    <div className="flex items-center gap-1 ml-3">
+                      <span className="text-gray-500">→ Rule-8: First+Last+Phone</span>
+                    </div>
+                    <div className="flex items-center gap-1 ml-6">
+                      <span className="text-gray-500">→ Rule-9: First+Phone</span>
+                    </div>
+                    <div className="flex items-center gap-1 ml-6">
+                      <span className="text-gray-500">→ Rule-11: Phone only</span>
+                    </div>
+                    <div className="flex items-center gap-1 ml-3">
+                      <span className="text-gray-500">→ Rule-10: Last+Phone</span>
+                    </div>
+                    <div className="flex items-center gap-1 ml-6">
+                      <span className="text-gray-500">→ Rule-11: Phone only</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-1">
+                      <span className="font-medium text-purple-600">Rule-3:</span>
+                      <span>Address-based matching</span>
+                    </div>
+                    <div className="flex items-center gap-1 ml-3">
+                      <span className="text-gray-500">→ Rule-12: First+Last+Address</span>
+                    </div>
+                    <div className="flex items-center gap-1 ml-6">
+                      <span className="text-gray-500">→ Rule-13: First+Address</span>
+                    </div>
+                    <div className="flex items-center gap-1 ml-3">
+                      <span className="text-gray-500">→ Rule-14: Last+Address</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
           )}
         </div>
       </div>
