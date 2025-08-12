@@ -140,9 +140,16 @@ function evaluateRuleAll(rule: MatchRule, node1: any, node2: any, path: string[]
   const matchingFields = []
   const nonMatchingFields = []
   for (const f of rule.fields) {
-    if ((node1[f] || "").toLowerCase() === (node2[f] || "").toLowerCase()) {
-      matchingFields.push(f)
-    } else {
+    try {
+      const val1 = (node1[f] || "").toString().toLowerCase()
+      const val2 = (node2[f] || "").toString().toLowerCase()
+      if (val1 === val2) {
+        matchingFields.push(f)
+      } else {
+        nonMatchingFields.push(f)
+      }
+    } catch (error) {
+      console.warn(`Error comparing field ${f}:`, error)
       nonMatchingFields.push(f)
     }
   }
@@ -202,66 +209,109 @@ export default function GraphExplorer() {
   const radius = Math.min(svgSize.width, svgSize.height) * 0.425 // ~85% diameter of the SVG area
 
   // Transform raw data to our format with positioning
-  const nodeData: NodeData[] = useMemo(() => rawData.map((item: any, index: number) => {
-    // Normal mapping for all other records
-    return {
-      recordId: item["Record-Id"],
-      uuid: item["UUDI"],
-      salutation: item["Salutation"] || undefined,
-      firstName: item["First Name"] || undefined,
-      middleName: item["Middle Name"] || undefined,
-      lastName: item["Last Name"] || undefined,
-      email: item["Email"] || undefined,
-      phone: item["Phone"] || undefined,
-      x: centerX + radius * Math.cos((index * 2 * Math.PI) / rawData.length),
-      y: centerY + radius * Math.sin((index * 2 * Math.PI) / rawData.length),
+  const nodeData: NodeData[] = useMemo(() => {
+    try {
+      if (!rawData || !Array.isArray(rawData)) {
+        console.error('Invalid rawData:', rawData)
+        return []
+      }
+      
+      return rawData.map((item: any, index: number) => {
+        try {
+          // Validate required fields
+          if (!item || !item["Record-Id"] || !item["UUDI"]) {
+            console.warn(`Skipping invalid item at index ${index}:`, item)
+            return null
+          }
+          
+          return {
+            recordId: item["Record-Id"]?.toString() || '',
+            uuid: item["UUDI"]?.toString() || '',
+            salutation: item["Salutation"]?.toString() || undefined,
+            firstName: item["First Name"]?.toString() || undefined,
+            middleName: item["Middle Name"]?.toString() || undefined,
+            lastName: item["Last Name"]?.toString() || undefined,
+            email: item["Email"]?.toString() || undefined,
+            phone: item["Phone"]?.toString() || undefined,
+            x: centerX + radius * Math.cos((index * 2 * Math.PI) / rawData.length),
+            y: centerY + radius * Math.sin((index * 2 * Math.PI) / rawData.length),
+          }
+        } catch (error) {
+          console.warn(`Error processing item at index ${index}:`, error)
+          return null
+        }
+      }).filter(Boolean) as NodeData[] // Remove null items
+    } catch (error) {
+      console.error('Error processing rawData:', error)
+      return []
     }
-  }), [centerX, centerY, radius])
+  }, [centerX, centerY, radius])
 
   // Generate all edges using match rules (OR logic, all rule paths)
   const edges = useMemo(() => {
-    const edgeMap = new Map<string, Edge>()
-    for (let i = 0; i < nodeData.length; i++) {
-      for (let j = i + 1; j < nodeData.length; j++) {
-        const node1 = nodeData[i]
-        const node2 = nodeData[j]
-        // Evaluate all top-level rules (OR logic)
-        let allResults: RuleEvalResult[] = []
-        for (const rule of matchRules) {
-          allResults = allResults.concat(evaluateRuleAll(rule, node1, node2))
-        }
-        // Group by type and matching/nonMatching fields
-        const grouped: { [key: string]: { matchingFields: string[], nonMatchingFields: string[], rulesUsed: string[][] } } = {}
-        for (const result of allResults) {
-          if (result.status === "positive" || result.status === "negative") {
-            const key = result.status + '|' + (result.matchingFields || []).join(',') + '|' + (result.nonMatchingFields || []).join(',')
-            if (!grouped[key]) {
-              grouped[key] = {
-                matchingFields: result.matchingFields,
-                nonMatchingFields: result.nonMatchingFields,
-                rulesUsed: [],
+    try {
+      const edgeMap = new Map<string, Edge>()
+      for (let i = 0; i < nodeData.length; i++) {
+        for (let j = i + 1; j < nodeData.length; j++) {
+          try {
+            const node1 = nodeData[i]
+            const node2 = nodeData[j]
+            if (!node1 || !node2) continue
+            
+            // Evaluate all top-level rules (OR logic)
+            let allResults: RuleEvalResult[] = []
+            for (const rule of matchRules) {
+              try {
+                allResults = allResults.concat(evaluateRuleAll(rule, node1, node2))
+              } catch (error) {
+                console.warn(`Error evaluating rule ${rule.name}:`, error)
+                continue
               }
             }
-            grouped[key].rulesUsed.push(...(result.rulesUsed as string[][]))
+            
+            // Group by type and matching/nonMatching fields
+            const grouped: { [key: string]: { matchingFields: string[], nonMatchingFields: string[], rulesUsed: string[][] } } = {}
+            for (const result of allResults) {
+              if (result.status === "positive" || result.status === "negative") {
+                const key = result.status + '|' + (result.matchingFields || []).join(',') + '|' + (result.nonMatchingFields || []).join(',')
+                if (!grouped[key]) {
+                  grouped[key] = {
+                    matchingFields: result.matchingFields || [],
+                    nonMatchingFields: result.nonMatchingFields || [],
+                    rulesUsed: [],
+                  }
+                }
+                if (result.rulesUsed) {
+                  grouped[key].rulesUsed.push(...(result.rulesUsed as string[][]))
+                }
+              }
+            }
+            
+            for (const key in grouped) {
+              const [type] = key.split('|')
+              edgeMap.set(
+                node1.recordId + '-' + node2.recordId + '-' + key,
+                {
+                  from: node1.recordId,
+                  to: node2.recordId,
+                  type: type as 'positive' | 'negative',
+                  matchingFields: grouped[key].matchingFields,
+                  nonMatchingFields: grouped[key].nonMatchingFields,
+                  rulesUsed: grouped[key].rulesUsed,
+                }
+              )
+            }
+          } catch (error) {
+            console.warn(`Error processing node pair ${i}-${j}:`, error)
+            continue
           }
         }
-        for (const key in grouped) {
-          const [type] = key.split('|')
-          edgeMap.set(
-            node1.recordId + '-' + node2.recordId + '-' + key,
-            {
-              from: node1.recordId,
-              to: node2.recordId,
-              type: type as 'positive' | 'negative',
-              matchingFields: grouped[key].matchingFields,
-              nonMatchingFields: grouped[key].nonMatchingFields,
-              rulesUsed: grouped[key].rulesUsed,
-            }
-          )
-        }
       }
+      return Array.from(edgeMap.values())
+    } catch (error) {
+      console.error('Error generating edges:', error)
+      return []
     }
-    return Array.from(edgeMap.values())
   }, [nodeData])
 
   const handleNodeHover = (node: NodeData) => {
