@@ -60,12 +60,50 @@ const matchRules = [
   {
     name: "Rule-2",
     fields: ["salutation", "firstName", "lastName", "phone"],
-    children: [],
+    children: [
+      {
+        name: "Rule-8",
+        fields: ["firstName", "lastName", "phone"],
+        children: [
+          {
+            name: "Rule-9",
+            fields: ["firstName", "phone"],
+            children: [
+              { name: "Rule-11", fields: ["phone"], children: [] },
+            ],
+          },
+          {
+            name: "Rule-10",
+            fields: ["lastName", "phone"],
+            children: [
+              { name: "Rule-11", fields: ["phone"], children: [] },
+            ],
+          },
+        ],
+      },
+    ],
   },
   {
     name: "Rule-3",
     fields: ["salutation", "firstName", "lastName", "addressLine1", "city", "country"],
-    children: [],
+    children: [
+      {
+        name: "Rule-12",
+        fields: ["firstName", "lastName", "addressLine1", "city", "country"],
+        children: [
+          {
+            name: "Rule-13",
+            fields: ["firstName", "addressLine1", "city", "country"],
+            children: [],
+          },
+          {
+            name: "Rule-14",
+            fields: ["lastName", "addressLine1", "city", "country"],
+            children: [],
+          },
+        ],
+      },
+    ],
   },
 ]
 
@@ -579,6 +617,16 @@ export default function GraphExplorer() {
               }
             }}
           >
+            {/* SVG Filters for visual effects */}
+            <defs>
+              <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                <feMerge> 
+                  <feMergeNode in="coloredBlur"/>
+                  <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+              </filter>
+            </defs>
             {/* Render edges first so they appear behind nodes */}
             {edges.map((edge, index) => {
               const fromNode = getNodeByRecordId(edge.from)
@@ -598,6 +646,9 @@ export default function GraphExplorer() {
               let edgeOpacity = 1
               if (isHovered || isSelected || isConnectedToNode) {
                 edgeOpacity = 1
+              } else if (selectedEdge) {
+                // When any edge is selected, tone down all non-selected edges significantly
+                edgeOpacity = 0.1
               } else if (hoveredNode || selectedNode) {
                 edgeOpacity = 0.15 // much dimmer for non-connected edges
               } else {
@@ -609,10 +660,11 @@ export default function GraphExplorer() {
                   key={`${edge.from}-${edge.to}-${edge.type}-${index}`}
                   d={pathData}
                   stroke={edge.type === "positive" ? "#10b981" : "#ef4444"}
-                  strokeWidth={(isHovered || isSelected || isConnectedToNode) ? 4 : 2}
+                  strokeWidth={isSelected ? 6 : (isHovered || isConnectedToNode) ? 4 : 2}
                   opacity={edgeOpacity}
                   fill="none"
                   strokeDasharray={edge.type === "negative" ? "5,5" : "none"}
+                  filter={isSelected ? "url(#glow)" : "none"}
                   className="cursor-pointer transition-all duration-200"
                   onMouseEnter={() => handleEdgeHover(edge)}
                   onMouseLeave={handleMouseLeave}
