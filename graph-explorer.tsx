@@ -22,7 +22,7 @@ interface NodeData {
 interface Edge {
   from: string
   to: string
-  type: "positive" | "negative"
+  type: "positive" | "negative" | "mixed"
   matchingFields: string[]
   nonMatchingFields: string[]
   rulesUsed: string[][]
@@ -478,6 +478,43 @@ export default function GraphExplorer() {
     return `M ${startX} ${startY} L ${endX} ${endY}`
   }
 
+  // Create unified edges that combine positive and negative relationships
+  const unifiedEdges = useMemo(() => {
+    const edgeMap = new Map<string, any>()
+    
+    // Group edges by node pairs
+    edges.forEach((edge) => {
+      const key = [edge.from, edge.to].sort().join('-')
+      
+      if (!edgeMap.has(key)) {
+        edgeMap.set(key, {
+          from: edge.from,
+          to: edge.to,
+          positiveFields: [],
+          negativeFields: [],
+          allRulesUsed: [],
+          hasBothTypes: false
+        })
+      }
+      
+      const unified = edgeMap.get(key)
+      if (edge.type === "positive") {
+        unified.positiveFields.push(...edge.matchingFields)
+        unified.allRulesUsed.push(...edge.rulesUsed)
+      } else {
+        unified.negativeFields.push(...edge.nonMatchingFields)
+        unified.allRulesUsed.push(...edge.rulesUsed)
+      }
+    })
+    
+    // Mark edges that have both positive and negative aspects
+    edgeMap.forEach((unified) => {
+      unified.hasBothTypes = unified.positiveFields.length > 0 && unified.negativeFields.length > 0
+    })
+    
+    return Array.from(edgeMap.values())
+  }, [edges])
+
   // Helper function to check if a node pair has both positive and negative edges
   const hasCounterpartEdge = (fromId: string, toId: string, currentType: "positive" | "negative"): boolean => {
     const oppositeType = currentType === "positive" ? "negative" : "positive"
@@ -525,29 +562,39 @@ export default function GraphExplorer() {
             <p className="text-gray-600 mt-1">Data Relationship Visualization</p>
           </div>
 
-          {/* Edge Legend */}
+          {/* Unified Edge Legend */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Edge Types</CardTitle>
+              <CardTitle className="text-lg">Relationship Types</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center gap-3">
                 <div className="w-6 h-0.5 bg-green-500"></div>
                 <div>
-                  <div className="font-medium text-green-600">Positive Edges</div>
-                  <div className="text-sm text-gray-600">Fields that match between nodes</div>
+                  <div className="font-medium text-green-600">Positive Only</div>
+                  <div className="text-sm text-gray-600">Only matching fields between nodes</div>
                   <div className="text-xs text-gray-500">
-                    Count: {edges.filter((e) => e.type === "positive").length}
+                    Count: {unifiedEdges.filter((e) => !e.hasBothTypes && e.positiveFields.length > 0).length}
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <div className="w-6 h-0.5 bg-red-500 border-dashed border border-red-500"></div>
                 <div>
-                  <div className="font-medium text-red-600">Negative Edges</div>
-                  <div className="text-sm text-gray-600">Fields that differ between nodes</div>
+                  <div className="font-medium text-red-600">Negative Only</div>
+                  <div className="text-sm text-gray-600">Only differing fields between nodes</div>
                   <div className="text-xs text-gray-500">
-                    Count: {edges.filter((e) => e.type === "negative").length}
+                    Count: {unifiedEdges.filter((e) => !e.hasBothTypes && e.negativeFields.length > 0).length}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-0.5 bg-purple-500 border-dashed border border-purple-500" style={{ strokeDasharray: "10,5" }}></div>
+                <div>
+                  <div className="font-medium text-purple-600">Mixed Relationships</div>
+                  <div className="text-sm text-gray-600">Both matching and differing fields</div>
+                  <div className="text-xs text-gray-500">
+                    Count: {unifiedEdges.filter((e) => e.hasBothTypes).length}
                   </div>
                 </div>
               </div>
@@ -591,20 +638,24 @@ export default function GraphExplorer() {
                 <span className="font-medium">{nodeData.length}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Total Edges:</span>
-                <span className="font-medium">{edges.length}</span>
+                <span className="text-gray-600">Total Relationships:</span>
+                <span className="font-medium">{unifiedEdges.length}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Possible Pairs:</span>
                 <span className="font-medium">{(nodeData.length * (nodeData.length - 1)) / 2}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Positive Edges:</span>
-                <span className="font-medium text-green-600">{edges.filter((e) => e.type === "positive").length}</span>
+                <span className="text-gray-600">Positive Only:</span>
+                <span className="font-medium text-green-600">{unifiedEdges.filter((e) => !e.hasBothTypes && e.positiveFields.length > 0).length}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Negative Edges:</span>
-                <span className="font-medium text-red-600">{edges.filter((e) => e.type === "negative").length}</span>
+                <span className="text-gray-600">Negative Only:</span>
+                <span className="font-medium text-red-600">{unifiedEdges.filter((e) => !e.hasBothTypes && e.negativeFields.length > 0).length}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Mixed:</span>
+                <span className="font-medium text-purple-600">{unifiedEdges.filter((e) => e.hasBothTypes).length}</span>
               </div>
             </CardContent>
           </Card>
@@ -672,48 +723,81 @@ export default function GraphExplorer() {
                 </feMerge>
               </filter>
             </defs>
-            {/* Render edges first so they appear behind nodes */}
-            {edges.map((edge, index) => {
-              const fromNode = getNodeByRecordId(edge.from)
-              const toNode = getNodeByRecordId(edge.to)
+            {/* Render unified edges that combine positive and negative relationships */}
+            {unifiedEdges.map((unifiedEdge, index) => {
+              const fromNode = getNodeByRecordId(unifiedEdge.from)
+              const toNode = getNodeByRecordId(unifiedEdge.to)
 
               if (!fromNode || !toNode) return null
 
-              const hasCounterpart = hasCounterpartEdge(edge.from, edge.to, edge.type)
-              const pathData = drawStraightEdgeBetweenNodes(fromNode, toNode, edge.type, nodeData, 30, hasCounterpart)
+              // Create a composite edge that represents the complete relationship
+              const compositeEdge: Edge = {
+                from: unifiedEdge.from,
+                to: unifiedEdge.to,
+                type: unifiedEdge.hasBothTypes ? "mixed" : (unifiedEdge.positiveFields.length > 0 ? "positive" : "negative") as "positive" | "negative" | "mixed",
+                matchingFields: unifiedEdge.positiveFields,
+                nonMatchingFields: unifiedEdge.negativeFields,
+                rulesUsed: unifiedEdge.allRulesUsed
+              }
 
-              const isHovered = hoveredEdge === edge
-              const isSelected = selectedEdge === edge
+              const isHovered = hoveredEdge && (hoveredEdge.from === unifiedEdge.from && hoveredEdge.to === unifiedEdge.to)
+              const isSelected = selectedEdge && (selectedEdge.from === unifiedEdge.from && selectedEdge.to === unifiedEdge.to)
               const isConnectedToNode =
                 (hoveredNode || selectedNode) &&
-                (edge.from === (hoveredNode || selectedNode)?.recordId || edge.to === (hoveredNode || selectedNode)?.recordId)
+                (unifiedEdge.from === (hoveredNode || selectedNode)?.recordId || unifiedEdge.to === (hoveredNode || selectedNode)?.recordId)
 
               let edgeOpacity = 1
               if (isHovered || isSelected || isConnectedToNode) {
                 edgeOpacity = 1
               } else if (selectedEdge) {
-                // When any edge is selected, tone down all non-selected edges significantly
                 edgeOpacity = 0.1
               } else if (hoveredNode || selectedNode) {
-                edgeOpacity = 0.15 // much dimmer for non-connected edges
+                edgeOpacity = 0.15
               } else {
-                edgeOpacity = 0.7 // default
+                edgeOpacity = 0.7
               }
+
+              // Determine edge styling based on relationship type
+              let strokeColor = "#6b7280" // default gray
+              let strokeDasharray = "none"
+              let strokeWidth = 2
+
+              if (unifiedEdge.hasBothTypes) {
+                // Mixed relationship - use gradient or special styling
+                strokeColor = "#8b5cf6" // purple for mixed
+                strokeDasharray = "10,5" // special pattern
+                strokeWidth = 3
+              } else if (unifiedEdge.positiveFields.length > 0) {
+                // Only positive
+                strokeColor = "#10b981" // green
+                strokeWidth = 2
+              } else {
+                // Only negative
+                strokeColor = "#ef4444" // red
+                strokeDasharray = "5,5"
+                strokeWidth = 2
+              }
+
+              // Adjust stroke width for hover/selection states
+              if (isSelected) strokeWidth = 6
+              else if (isHovered || isConnectedToNode) strokeWidth = 4
+
+              const pathData = drawStraightEdgeBetweenNodes(fromNode, toNode, "positive", nodeData, 30, false)
 
               return (
                 <path
-                  key={`${edge.from}-${edge.to}-${edge.type}-${index}`}
+                  key={`${unifiedEdge.from}-${unifiedEdge.to}-${index}`}
                   d={pathData}
-                  stroke={edge.type === "positive" ? "#10b981" : "#ef4444"}
-                  strokeWidth={isSelected ? 6 : (isHovered || isConnectedToNode) ? 4 : 2}
+                  stroke={strokeColor}
+                  strokeWidth={strokeWidth}
                   opacity={edgeOpacity}
                   fill="none"
-                  strokeDasharray={edge.type === "negative" ? "5,5" : "none"}
+                  strokeDasharray={strokeDasharray}
                   filter={isSelected ? "url(#glow)" : "none"}
                   className="cursor-pointer transition-all duration-200"
-                  onMouseEnter={() => handleEdgeHover(edge)}
+                  onMouseEnter={() => handleEdgeHover(compositeEdge)}
                   onMouseLeave={handleMouseLeave}
-                  onClick={() => handleEdgeClick(edge)}
+                  onClick={() => handleEdgeClick(compositeEdge)}
                 />
               )
             })}
