@@ -949,31 +949,61 @@ export default function GraphExplorer() {
                   </div>
                 </div>
 
-                {/* Edge Summary Section */}
+                {/* Unified Edge Summary Section */}
                 <hr className="my-2" />
                 <div className="text-xs text-gray-700">
-                  <div className="font-semibold mb-1">Edge Summary</div>
+                  <div className="font-semibold mb-1">Unified Edge Summary</div>
                   {(() => {
                     const node = selectedNode || hoveredNode
                     if (!node) return null
-                    const posEdges = edges.filter(e => (e.from === node.recordId || e.to === node.recordId) && e.type === "positive")
-                    const negEdges = edges.filter(e => (e.from === node.recordId || e.to === node.recordId) && e.type === "negative")
+                    
+                    // Get all edges connected to this node
+                    const allEdges = edges.filter(e => e.from === node.recordId || e.to === node.recordId)
                     const getOther = (e: Edge) => e.from === node.recordId ? e.to : e.from
-                    // Helper to render rule paths as styled boxes/arrows, with wrapping
+                    
+                    // Group edges by target node to create unified relationships
+                    const edgeGroups = new Map<string, any>()
+                    allEdges.forEach(edge => {
+                      const otherNode = getOther(edge)
+                      if (!edgeGroups.has(otherNode)) {
+                        edgeGroups.set(otherNode, {
+                          target: otherNode,
+                          positiveRules: [],
+                          negativeRules: [],
+                          hasBothTypes: false
+                        })
+                      }
+                      const group = edgeGroups.get(otherNode)
+                      if (edge.type === "positive") {
+                        group.positiveRules.push(...edge.rulesUsed)
+                      } else {
+                        group.negativeRules.push(...edge.rulesUsed)
+                      }
+                    })
+                    
+                    // Determine relationship type for each group
+                    edgeGroups.forEach(group => {
+                      group.hasBothTypes = group.positiveRules.length > 0 && group.negativeRules.length > 0
+                      group.relationshipType = group.hasBothTypes 
+                        ? (group.positiveRules.length >= group.negativeRules.length ? 'positive' : 'negative')
+                        : (group.positiveRules.length > 0 ? 'positive' : 'negative')
+                    })
+                    
+                    // Helper to render rule paths with proper coloring
                     const renderRulePath = (rulePath: string[], status: string) => (
                       <div className="flex flex-row flex-wrap items-center space-x-1 break-all whitespace-normal w-full">
                         {rulePath.map((rule, i) => {
                           const isLast = i === rulePath.length - 1
                           let className = 'px-1.5 py-0.5 rounded font-semibold text-[9px]'
-                          if (status === 'unknown') {
-                            className += ' bg-gray-200 text-gray-500'
-                          } else if (isLast) {
-                            className += status === 'positive'
-                              ? ' bg-green-100 text-green-700'
-                              : ' bg-red-100 text-red-700'
+                          
+                          if (status === 'positive') {
+                            className += isLast ? ' bg-green-100 text-green-700' : ' bg-gray-100 text-gray-600'
+                          } else if (status === 'negative') {
+                            className += isLast ? ' bg-red-100 text-red-700' : ' bg-gray-100 text-gray-600'
                           } else {
-                            className += ' bg-gray-100 text-gray-600'
+                            className += ' bg-gray-200 text-gray-500'
                           }
+                          
                           return (
                             <React.Fragment key={rule + '-' + i}>
                               <span
@@ -991,44 +1021,54 @@ export default function GraphExplorer() {
                         })}
                       </div>
                     )
+                    
                     return (
-                      <div className="space-y-1">
-                        <div>
-                          <span className="font-medium text-green-700">Positive:</span> {posEdges.length}
-                          {posEdges.length > 0 && (
-                            <div className="ml-2 flex flex-col space-y-1 w-full">
-                              {posEdges.map((e, i) => (
-                                <div key={e.from + e.to + e.rulesUsed.join('-') + '-' + i} className="flex flex-col items-start w-full">
-                                  <span className="font-mono mr-1">{getOther(e)}</span>
-                                  {/* Render all rule paths for this edge, each on its own line */}
-                                  {e.rulesUsed.map((rulePath, idx) => (
-                                    <div key={rulePath.join('-') + '-' + idx} className="w-full">
-                                      {renderRulePath(rulePath, e.type)}
-                                    </div>
-                                  ))}
-                                </div>
-                              ))}
+                      <div className="space-y-2">
+                        {Array.from(edgeGroups.values()).map((group, idx) => (
+                          <div key={group.target + '-' + idx} className="border-l-2 pl-2" style={{
+                            borderLeftColor: group.relationshipType === 'positive' ? '#10b981' : '#ef4444'
+                          }}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-mono text-xs">{group.target}</span>
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-semibold ${
+                                group.relationshipType === 'positive' 
+                                  ? 'bg-green-100 text-green-700' 
+                                  : 'bg-red-100 text-red-700'
+                              }`}>
+                                {group.relationshipType === 'positive' ? 'POSITIVE' : 'NEGATIVE'}
+                              </span>
+                              {group.hasBothTypes && (
+                                <span className="px-2 py-0.5 rounded text-[8px] font-semibold bg-gray-100 text-gray-600">
+                                  MIXED
+                                </span>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        <div>
-                          <span className="font-medium text-red-700">Negative:</span> {negEdges.length}
-                          {negEdges.length > 0 && (
-                            <div className="ml-2 flex flex-col space-y-1 w-full">
-                              {negEdges.map((e, i) => (
-                                <div key={e.from + e.to + e.rulesUsed.join('-') + '-' + i} className="flex flex-col items-start w-full">
-                                  <span className="font-mono mr-1">{getOther(e)}</span>
-                                  {/* Render all rule paths for this edge, each on its own line */}
-                                  {e.rulesUsed.map((rulePath, idx) => (
-                                    <div key={rulePath.join('-') + '-' + idx} className="w-full">
-                                      {renderRulePath(rulePath, e.type)}
-                                    </div>
-                                  ))}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                            
+                            {/* Positive Rules */}
+                            {group.positiveRules.length > 0 && (
+                              <div className="ml-2 mb-1">
+                                <span className="text-[8px] text-green-600 font-medium">✓ Matching Rules:</span>
+                                {group.positiveRules.map((rulePath: string[], ruleIdx: number) => (
+                                  <div key={'pos-' + ruleIdx} className="ml-2 mt-1">
+                                    {renderRulePath(rulePath, 'positive')}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            
+                            {/* Negative Rules */}
+                            {group.negativeRules.length > 0 && (
+                              <div className="ml-2">
+                                <span className="text-[8px] text-red-600 font-medium">✗ Differing Rules:</span>
+                                {group.negativeRules.map((rulePath: string[], ruleIdx: number) => (
+                                  <div key={'neg-' + ruleIdx} className="ml-2 mt-1">
+                                    {renderRulePath(rulePath, 'negative')}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     )
                   })()}
