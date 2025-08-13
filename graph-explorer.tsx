@@ -589,12 +589,12 @@ export default function GraphExplorer() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="w-6 h-0.5 bg-purple-500 border-dashed border border-purple-500" style={{ strokeDasharray: "10,5" }}></div>
+                <div className="w-6 h-0.5 bg-gray-500 border-dashed border border-gray-500"></div>
                 <div>
-                  <div className="font-medium text-purple-600">Mixed Relationships</div>
-                  <div className="text-sm text-gray-600">Both matching and differing fields</div>
+                  <div className="font-medium text-gray-600">Mixed Relationships</div>
+                  <div className="text-sm text-gray-600">Some fields match, some differ (dominant type shown)</div>
                   <div className="text-xs text-gray-500">
-                    Count: {unifiedEdges.filter((e) => e.hasBothTypes).length}
+                    Count: {unifiedEdges.filter((e) => e.positiveFields.length > 0 && e.negativeFields.length > 0).length}
                   </div>
                 </div>
               </div>
@@ -655,7 +655,7 @@ export default function GraphExplorer() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Mixed:</span>
-                <span className="font-medium text-purple-600">{unifiedEdges.filter((e) => e.hasBothTypes).length}</span>
+                <span className="font-medium text-gray-600">{unifiedEdges.filter((e) => e.positiveFields.length > 0 && e.negativeFields.length > 0).length}</span>
               </div>
             </CardContent>
           </Card>
@@ -757,25 +757,32 @@ export default function GraphExplorer() {
                 edgeOpacity = 0.7
               }
 
-              // Determine edge styling based on relationship type
+              // Determine edge styling based on actual relationship evaluation
               let strokeColor = "#6b7280" // default gray
               let strokeDasharray = "none"
               let strokeWidth = 2
 
-              if (unifiedEdge.hasBothTypes) {
-                // Mixed relationship - use gradient or special styling
-                strokeColor = "#8b5cf6" // purple for mixed
-                strokeDasharray = "10,5" // special pattern
-                strokeWidth = 3
-              } else if (unifiedEdge.positiveFields.length > 0) {
-                // Only positive
+              // Evaluate the actual relationship based on match rules
+              if (unifiedEdge.positiveFields.length > 0 && unifiedEdge.negativeFields.length === 0) {
+                // Pure positive relationship - all fields match
                 strokeColor = "#10b981" // green
                 strokeWidth = 2
-              } else {
-                // Only negative
+              } else if (unifiedEdge.positiveFields.length === 0 && unifiedEdge.negativeFields.length > 0) {
+                // Pure negative relationship - all fields differ
                 strokeColor = "#ef4444" // red
                 strokeDasharray = "5,5"
                 strokeWidth = 2
+              } else if (unifiedEdge.positiveFields.length > 0 && unifiedEdge.negativeFields.length > 0) {
+                // Mixed relationship - some fields match, some differ
+                // Use the dominant relationship type
+                if (unifiedEdge.positiveFields.length >= unifiedEdge.negativeFields.length) {
+                  strokeColor = "#10b981" // green (positive dominant)
+                  strokeWidth = 2
+                } else {
+                  strokeColor = "#ef4444" // red (negative dominant)
+                  strokeDasharray = "5,5"
+                  strokeWidth = 2
+                }
               }
 
               // Adjust stroke width for hover/selection states
@@ -1279,3 +1286,4 @@ export default function GraphExplorer() {
     </div>
   )
 }
+
