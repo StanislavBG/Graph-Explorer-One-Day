@@ -528,10 +528,20 @@ export default function GraphExplorer() {
   // Get unique UUIDs for coloring
   const uniqueUUIDs = useMemo(() => {
     return Array.from(new Set(nodeData.map((node) => node.uuid)))
-  }, [])
+  }, [nodeData])
 
   const getNodeColor = (uuid: string) => {
+    if (!uuid || !uniqueUUIDs || uniqueUUIDs.length === 0) {
+      console.warn('getNodeColor: Invalid UUID or empty uniqueUUIDs:', { uuid, uniqueUUIDs })
+      return "#6b7280" // fallback gray color
+    }
+    
     const index = uniqueUUIDs.indexOf(uuid)
+    if (index === -1) {
+      console.warn('getNodeColor: UUID not found in uniqueUUIDs:', { uuid, uniqueUUIDs })
+      return "#6b7280" // fallback gray color
+    }
+    
     const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"]
     return colors[index % colors.length]
   }
