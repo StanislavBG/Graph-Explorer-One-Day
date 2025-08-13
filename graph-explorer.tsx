@@ -109,14 +109,54 @@ type MatchRule = {
   children: MatchRule[];
 };
 
+// Helper function to check for conflicts between two nodes
+function checkForConflicts(node1: any, node2: any): boolean {
+  // Check for firstName conflicts (only defined vs defined conflicts)
+  const hasFirstNameConflict = (node1.firstName !== undefined && node1.firstName !== "" && 
+                               node2.firstName !== undefined && node2.firstName !== "" && 
+                               node1.firstName !== node2.firstName)
+  
+  // Check for lastName conflicts (only defined vs defined conflicts)
+  const hasLastNameConflict = (node1.lastName !== undefined && node1.lastName !== "" && 
+                              node2.lastName !== undefined && node2.lastName !== "" && 
+                              node1.lastName !== node2.lastName)
+  
+  return hasFirstNameConflict || hasLastNameConflict
+}
+
+// Helper function to find conflicting fields between two nodes
+function findConflictingFields(node1: any, node2: any): string[] {
+  const conflicts: string[] = []
+  
+  if (node1.firstName !== undefined && node1.firstName !== "" && 
+      node2.firstName !== undefined && node2.firstName !== "" && 
+      node1.firstName !== node2.firstName) {
+    conflicts.push('firstName')
+  }
+  
+  if (node1.lastName !== undefined && node1.lastName !== "" && 
+      node2.lastName !== undefined && node2.lastName !== "" && 
+      node1.lastName !== node2.lastName) {
+    conflicts.push('lastName')
+  }
+  
+  return conflicts
+}
+
 type RuleEvalResult =
   | { status: "positive" | "negative"; matchingFields: string[]; nonMatchingFields: string[]; rulesUsed: string[][] }
   | { status: "unknown"; rulesUsed: string[][] };
 
 // --- Rule Evaluation (OR logic for all children, returns all paths) ---
 function evaluateRuleAll(rule: MatchRule, node1: any, node2: any, path: string[] = []): RuleEvalResult[] {
-  // Check if all fields are present in both nodes
-  const missing = rule.fields.filter(f => node1[f] == null || node2[f] == null)
+  // Check if all fields are present in both nodes (handle null, undefined, and empty strings)
+  const missing = rule.fields.filter(f => {
+    const val1 = node1[f]
+    const val2 = node2[f]
+    // Field is missing if it's null, undefined, or empty string
+    return val1 == null || val2 == null || val1 === undefined || val2 === undefined || val1 === "" || val2 === ""
+  })
+  
   if (missing.length > 0) {
     // Not enough data, try all children (OR logic)
     let results: RuleEvalResult[] = []
@@ -136,13 +176,14 @@ function evaluateRuleAll(rule: MatchRule, node1: any, node2: any, path: string[]
     }
     return [{ status: "unknown", rulesUsed: [[...path, rule.name]] }]
   }
+  
   // All fields present, compare
   const matchingFields = []
   const nonMatchingFields = []
   for (const f of rule.fields) {
     try {
-      const val1 = (node1[f] || "").toString().toLowerCase()
-      const val2 = (node2[f] || "").toString().toLowerCase()
+      const val1 = node1[f].toString().toLowerCase()
+      const val2 = node2[f].toString().toLowerCase()
       if (val1 === val2) {
         matchingFields.push(f)
       } else {
@@ -153,6 +194,7 @@ function evaluateRuleAll(rule: MatchRule, node1: any, node2: any, path: string[]
       nonMatchingFields.push(f)
     }
   }
+  
   if (nonMatchingFields.length === 0) {
     return [{ status: "positive", matchingFields, nonMatchingFields, rulesUsed: [[...path, rule.name]] }]
   } else {
@@ -227,12 +269,12 @@ export default function GraphExplorer() {
           return {
             recordId: item["Record-Id"]?.toString() || '',
             uuid: item["UUDI"]?.toString() || '',
-            salutation: item["Salutation"]?.toString() || undefined,
-            firstName: item["First Name"]?.toString() || undefined,
-            middleName: item["Middle Name"]?.toString() || undefined,
-            lastName: item["Last Name"]?.toString() || undefined,
-            email: item["Email"]?.toString() || undefined,
-            phone: item["Phone"]?.toString() || undefined,
+            salutation: item["Salutation"]?.toString() || '',
+            firstName: item["First Name"]?.toString() || '',
+            middleName: item["Middle Name"]?.toString() || '',
+            lastName: item["Last Name"]?.toString() || '',
+            email: item["Email"]?.toString() || '',
+            phone: item["Phone"]?.toString() || '',
             x: centerX + radius * Math.cos((index * 2 * Math.PI) / rawData.length),
             y: centerY + radius * Math.sin((index * 2 * Math.PI) / rawData.length),
           }
@@ -247,7 +289,7 @@ export default function GraphExplorer() {
     }
   }, [centerX, centerY, radius])
 
-  // Generate all edges using match rules (OR logic, all rule paths)
+  // Generate overall edges based on rule evaluation precedence
   const edges = useMemo(() => {
     try {
       const edgeMap = new Map<string, Edge>()
@@ -258,7 +300,7 @@ export default function GraphExplorer() {
             const node2 = nodeData[j]
             if (!node1 || !node2) continue
             
-            // Evaluate all top-level rules (OR logic)
+            // Evaluate all top-level rules to get overall edge status
             let allResults: RuleEvalResult[] = []
             for (const rule of matchRules) {
               try {
@@ -269,35 +311,113 @@ export default function GraphExplorer() {
               }
             }
             
-            // Group by type and matching/nonMatching fields
-            const grouped: { [key: string]: { matchingFields: string[], nonMatchingFields: string[], rulesUsed: string[][] } } = {}
+            // Determine overall edge status based on rule precedence
+            // Rule-1 has highest precedence, then Rule-2, then Rule-3
+            let overallStatus: 'positive' | 'negative' | 'neutral' = 'neutral'
+            let matchingFields: string[] = []
+            let nonMatchingFields: string[] = []
+            let rulesUsed: string[][] = []
+            
+            // Group results by top-level rule
+            const ruleResults: { [ruleName: string]: RuleEvalResult[] } = {}
             for (const result of allResults) {
-              if (result.status === "positive" || result.status === "negative") {
-                const key = result.status + '|' + (result.matchingFields || []).join(',') + '|' + (result.nonMatchingFields || []).join(',')
-                if (!grouped[key]) {
-                  grouped[key] = {
-                    matchingFields: result.matchingFields || [],
-                    nonMatchingFields: result.nonMatchingFields || [],
-                    rulesUsed: [],
+              const topRule = result.rulesUsed[0][0]
+              if (!ruleResults[topRule]) {
+                ruleResults[topRule] = []
+              }
+              ruleResults[topRule].push(result)
+            }
+            
+            // Check each rule in order of precedence and collect results
+            const ruleResultsByPrecedence: { ruleName: string; status: 'positive' | 'negative' | 'neutral'; result: RuleEvalResult }[] = []
+            
+            for (const rule of matchRules) {
+              const resultsForThisRule = ruleResults[rule.name] || []
+              
+              if (resultsForThisRule.length > 0) {
+                // Find the highest precedence result for this rule (shortest path)
+                let highestPrecedenceResult = resultsForThisRule[0]
+                for (const result of resultsForThisRule) {
+                  if (result.rulesUsed[0].length < highestPrecedenceResult.rulesUsed[0].length) {
+                    highestPrecedenceResult = result
                   }
                 }
-                if (result.rulesUsed) {
-                  grouped[key].rulesUsed.push(...(result.rulesUsed as string[][]))
+                
+                // If this rule has a definitive result, record it
+                if (highestPrecedenceResult.status === 'positive' || highestPrecedenceResult.status === 'negative') {
+                  ruleResultsByPrecedence.push({
+                    ruleName: rule.name,
+                    status: highestPrecedenceResult.status,
+                    result: highestPrecedenceResult
+                  })
                 }
               }
             }
             
-            for (const key in grouped) {
-              const [type] = key.split('|')
+            // Determine overall status based on rule precedence
+            if (ruleResultsByPrecedence.length > 0) {
+              // Rule-1 (Email) has highest precedence, then Rule-2 (Phone), then Rule-3 (Address)
+              const rule1Result = ruleResultsByPrecedence.find(r => r.ruleName === "Rule-1")
+              const rule2Result = ruleResultsByPrecedence.find(r => r.ruleName === "Rule-2")
+              const rule3Result = ruleResultsByPrecedence.find(r => r.ruleName === "Rule-3")
+              
+              // If Rule-1 has a negative result, it overrides everything
+              if (rule1Result && rule1Result.status === 'negative') {
+                overallStatus = 'negative'
+                matchingFields = []
+                nonMatchingFields = (rule1Result.result as any).nonMatchingFields || []
+                rulesUsed = rule1Result.result.rulesUsed || []
+              }
+              // If Rule-1 has a positive result, check Rule-2
+              else if (rule1Result && rule1Result.status === 'positive') {
+                // If Rule-2 has a negative result, it overrides Rule-1's positive
+                if (rule2Result && rule2Result.status === 'negative') {
+                  overallStatus = 'negative'
+                  matchingFields = []
+                  nonMatchingFields = (rule2Result.result as any).nonMatchingFields || []
+                  rulesUsed = rule2Result.result.rulesUsed || []
+                } else {
+                  // Rule-1 positive stands
+                  overallStatus = 'positive'
+                  matchingFields = (rule1Result.result as any).matchingFields || []
+                  nonMatchingFields = (rule1Result.result as any).nonMatchingFields || []
+                  rulesUsed = rule1Result.result.rulesUsed || []
+                }
+              }
+              // If Rule-1 has no result, check Rule-2
+              else if (rule2Result) {
+                overallStatus = rule2Result.status
+                if (rule2Result.status === 'positive' || rule2Result.status === 'negative') {
+                  matchingFields = (rule2Result.result as any).matchingFields || []
+                  nonMatchingFields = (rule2Result.result as any).nonMatchingFields || []
+                }
+                rulesUsed = rule2Result.result.rulesUsed || []
+              }
+              // If only Rule-3 has results
+              else if (rule3Result) {
+                overallStatus = rule3Result.status
+                if (rule3Result.status === 'positive' || rule3Result.status === 'negative') {
+                  matchingFields = (rule3Result.result as any).matchingFields || []
+                  nonMatchingFields = (rule3Result.result as any).nonMatchingFields || []
+                }
+                rulesUsed = rule3Result.result.rulesUsed || []
+              }
+            }
+            
+            // Only create edges for positive or negative relationships
+            if (overallStatus !== 'neutral') {
+              if (overallStatus === 'positive') {
+                console.log(`POSITIVE EDGE: ${node1.recordId} <-> ${node2.recordId} (${matchingFields.join(', ')})`)
+              }
               edgeMap.set(
-                node1.recordId + '-' + node2.recordId + '-' + key,
+                node1.recordId + '-' + node2.recordId,
                 {
                   from: node1.recordId,
                   to: node2.recordId,
-                  type: type as 'positive' | 'negative',
-                  matchingFields: grouped[key].matchingFields,
-                  nonMatchingFields: grouped[key].nonMatchingFields,
-                  rulesUsed: grouped[key].rulesUsed,
+                  type: overallStatus,
+                  matchingFields,
+                  nonMatchingFields,
+                  rulesUsed,
                 }
               )
             }
@@ -475,7 +595,13 @@ export default function GraphExplorer() {
       }
     }
 
-    return `M ${startX} ${startY} L ${endX} ${endY}`
+    // Round coordinates to 2 decimal places to prevent hydration mismatches
+    const roundedStartX = Math.round(startX * 100) / 100
+    const roundedStartY = Math.round(startY * 100) / 100
+    const roundedEndX = Math.round(endX * 100) / 100
+    const roundedEndY = Math.round(endY * 100) / 100
+    
+    return `M ${roundedStartX} ${roundedStartY} L ${roundedEndX} ${roundedEndY}`
   }
 
   // Create unified edges that combine positive and negative relationships
@@ -525,92 +651,61 @@ export default function GraphExplorer() {
     )
   }
 
-  // Clustering logic based on rule evaluation
+  // Clustering logic based on overall edges with negative edge precedence
   const nodeClusters = useMemo(() => {
     if (nodeData.length === 0) return new Map<string, number>()
     
     const clusters = new Map<string, number>()
-    const clusterGroups: Map<number, Set<string>> = new Map()
-    let nextClusterId = 0
+    const clusterGroups = new Map<number, Set<string>>()
+    let nextClusterId = 1
     
-    // Helper function to evaluate if two nodes should be in the same cluster
-    const shouldBeInSameCluster = (node1: NodeData, node2: NodeData): boolean => {
-      // Evaluate all top-level rules (OR logic)
-      let allResults: RuleEvalResult[] = []
-      for (const rule of matchRules) {
-        try {
-          allResults = allResults.concat(evaluateRuleAll(rule, node1, node2))
-        } catch (error) {
-          console.warn(`Error evaluating rule ${rule.name}:`, error)
-          continue
-        }
+    // Helper function to check if two nodes can be in the same cluster
+    const canBeInSameCluster = (node1: NodeData, node2: NodeData): boolean => {
+      // Find the edge between these two nodes
+      const edge = edges.find(e => 
+        (e.from === node1.recordId && e.to === node2.recordId) ||
+        (e.from === node2.recordId && e.to === node1.recordId)
+      )
+      
+      // If there's a negative edge, they CANNOT be in the same cluster
+      if (edge?.type === 'negative') {
+        return false
       }
       
-      // Group results by rule chain (root rule)
-      const ruleChainResults = new Map<string, RuleEvalResult[]>()
-      for (const result of allResults) {
-        if (result.rulesUsed && result.rulesUsed.length > 0) {
-          const rootRule = result.rulesUsed[0][0] // First rule in the chain
-          if (!ruleChainResults.has(rootRule)) {
-            ruleChainResults.set(rootRule, [])
-          }
-          ruleChainResults.get(rootRule)!.push(result)
-        }
+      // If there's a positive edge, they CAN be in the same cluster
+      if (edge?.type === 'positive') {
+        return true
       }
       
-      // Evaluate each rule chain
-      for (const [rootRule, results] of ruleChainResults) {
-        // Sort results by rule precedence (higher rules first)
-        results.sort((a, b) => {
-          if (!a.rulesUsed || !b.rulesUsed) return 0
-          const aLevel = a.rulesUsed[0].length
-          const bLevel = b.rulesUsed[0].length
-          return aLevel - bLevel // Lower level = higher precedence
-        })
-        
-        // Check if this rule chain qualifies for clustering
-        let hasPositiveMatch = false
-        let hasNegativeMatch = false
-        let hasUnknownRule = false
-        
-        for (const result of results) {
-          if (result.status === "positive") {
-            hasPositiveMatch = true
-          } else if (result.status === "negative") {
-            hasNegativeMatch = true
-          } else if (result.status === "unknown") {
-            hasUnknownRule = true
-          }
-        }
-        
-        // Rule chain qualifies if it has positive matches and no higher-precedence negative matches
-        // Note: Unknown rules don't qualify for clustering (not enough data)
-        if (hasPositiveMatch && !hasNegativeMatch) {
-          return true // These nodes should be in the same cluster
-        }
-      }
-      
-      return false // No qualifying rule chains found
+      // If no edge (neutral), they can be in the same cluster
+      return true
     }
     
-    // Assign clusters
+    // Helper function to check if a node can join a specific cluster
+    const canJoinCluster = (node: NodeData, clusterNodes: Set<string>): boolean => {
+      for (const existingNodeId of clusterNodes) {
+        const existingNode = nodeData.find(n => n?.recordId === existingNodeId)
+        if (existingNode && !canBeInSameCluster(node, existingNode)) {
+          return false
+        }
+      }
+      return true
+    }
+    
+    // First pass: Create initial clusters based on positive connections
     for (let i = 0; i < nodeData.length; i++) {
       const node1 = nodeData[i]
       if (!node1) continue
       
-      // Check if this node should join an existing cluster
+      // Check if this node can join an existing cluster
       let assignedToCluster = false
       for (const [clusterId, clusterNodes] of clusterGroups) {
-        for (const existingNodeId of clusterNodes) {
-          const existingNode = nodeData.find(n => n?.recordId === existingNodeId)
-          if (existingNode && shouldBeInSameCluster(node1, existingNode)) {
-            clusterNodes.add(node1.recordId)
-            clusters.set(node1.recordId, clusterId)
-            assignedToCluster = true
-            break
-          }
+        if (canJoinCluster(node1, clusterNodes)) {
+          clusterNodes.add(node1.recordId)
+          clusters.set(node1.recordId, clusterId)
+          assignedToCluster = true
+          break
         }
-        if (assignedToCluster) break
       }
       
       // If no existing cluster found, create a new one
@@ -621,8 +716,52 @@ export default function GraphExplorer() {
       }
     }
     
+    // Second pass: Split clusters that have negative connections
+    let hasChanges = true
+    while (hasChanges) {
+      hasChanges = false
+      
+      for (const [clusterId, clusterNodes] of clusterGroups) {
+        if (clusterNodes.size <= 1) continue
+        
+        const nodesToRemove: string[] = []
+        
+        // Check each pair of nodes in the cluster
+        for (const nodeId1 of clusterNodes) {
+          for (const nodeId2 of clusterNodes) {
+            if (nodeId1 === nodeId2) continue
+            
+            const node1 = nodeData.find(n => n?.recordId === nodeId1)
+            const node2 = nodeData.find(n => n?.recordId === nodeId2)
+            
+            if (node1 && node2 && !canBeInSameCluster(node1, node2)) {
+              // These nodes shouldn't be together, remove one from this cluster
+              nodesToRemove.push(nodeId2)
+              hasChanges = true
+            }
+          }
+        }
+        
+        // Remove nodes that can't be in this cluster
+        for (const nodeId of nodesToRemove) {
+          clusterNodes.delete(nodeId)
+          clusters.delete(nodeId)
+        }
+      }
+      
+      // Create new clusters for removed nodes
+      for (const nodeId of clusters.keys()) {
+        if (!Array.from(clusterGroups.values()).some(cluster => cluster.has(nodeId))) {
+          // This node was removed but not reassigned, create a new cluster
+          const clusterId = nextClusterId++
+          clusters.set(nodeId, clusterId)
+          clusterGroups.set(clusterId, new Set([nodeId]))
+        }
+      }
+    }
+    
     return clusters
-  }, [nodeData, matchRules])
+  }, [nodeData, edges])
   
   // Get unique UUIDs for display purposes
   const uniqueUUIDs = useMemo(() => {
@@ -664,7 +803,7 @@ export default function GraphExplorer() {
           {/* Header */}
           <div>
             <h1 className="text-2xl font-bold text-gray-800">Graph Explorer</h1>
-            <p className="text-gray-600 mt-1">Data Relationship Visualization</p>
+            <p className="text-gray-600 mt-1">Data Relationship Visualization & Clustering</p>
           </div>
 
           {/* Unified Edge Legend */}
@@ -820,6 +959,7 @@ export default function GraphExplorer() {
             width="100%"
             height="100%"
             className="cursor-crosshair"
+            suppressHydrationWarning
             onClick={(e) => {
               // Only clear selection if the click target is the SVG itself (not a node or edge)
               if (e.target === svgRef.current) {
@@ -1325,7 +1465,7 @@ export default function GraphExplorer() {
                   <p>
                     • <strong>Red dashed edges</strong> show different fields
                   </p>
-                  <p>• Node colors represent different UUDI groups</p>
+                  <p>• Node colors represent different relationship clusters</p>
                 </CardContent>
               </Card>
 
@@ -1441,4 +1581,5 @@ export default function GraphExplorer() {
     </div>
   )
 }
+
 
