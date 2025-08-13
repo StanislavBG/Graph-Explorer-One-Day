@@ -525,23 +525,120 @@ export default function GraphExplorer() {
     )
   }
 
+  // Clustering logic based on rule evaluation
+  const nodeClusters = useMemo(() => {
+    if (nodeData.length === 0) return new Map<string, number>()
+    
+    const clusters = new Map<string, number>()
+    const clusterGroups: Map<number, Set<string>> = new Map()
+    let nextClusterId = 0
+    
+    // Helper function to evaluate if two nodes should be in the same cluster
+    const shouldBeInSameCluster = (node1: NodeData, node2: NodeData): boolean => {
+      // Evaluate all top-level rules (OR logic)
+      let allResults: RuleEvalResult[] = []
+      for (const rule of matchRules) {
+        try {
+          allResults = allResults.concat(evaluateRuleAll(rule, node1, node2))
+        } catch (error) {
+          console.warn(`Error evaluating rule ${rule.name}:`, error)
+          continue
+        }
+      }
+      
+      // Group results by rule chain (root rule)
+      const ruleChainResults = new Map<string, RuleEvalResult[]>()
+      for (const result of allResults) {
+        if (result.rulesUsed && result.rulesUsed.length > 0) {
+          const rootRule = result.rulesUsed[0][0] // First rule in the chain
+          if (!ruleChainResults.has(rootRule)) {
+            ruleChainResults.set(rootRule, [])
+          }
+          ruleChainResults.get(rootRule)!.push(result)
+        }
+      }
+      
+      // Evaluate each rule chain
+      for (const [rootRule, results] of ruleChainResults) {
+        // Sort results by rule precedence (higher rules first)
+        results.sort((a, b) => {
+          if (!a.rulesUsed || !b.rulesUsed) return 0
+          const aLevel = a.rulesUsed[0].length
+          const bLevel = b.rulesUsed[0].length
+          return aLevel - bLevel // Lower level = higher precedence
+        })
+        
+        // Check if this rule chain qualifies for clustering
+        let hasPositiveMatch = false
+        let hasNegativeMatch = false
+        let hasUnknownRule = false
+        
+        for (const result of results) {
+          if (result.status === "positive") {
+            hasPositiveMatch = true
+          } else if (result.status === "negative") {
+            hasNegativeMatch = true
+          } else if (result.status === "unknown") {
+            hasUnknownRule = true
+          }
+        }
+        
+        // Rule chain qualifies if it has positive matches and no higher-precedence negative matches
+        // Note: Unknown rules don't qualify for clustering (not enough data)
+        if (hasPositiveMatch && !hasNegativeMatch) {
+          return true // These nodes should be in the same cluster
+        }
+      }
+      
+      return false // No qualifying rule chains found
+    }
+    
+    // Assign clusters
+    for (let i = 0; i < nodeData.length; i++) {
+      const node1 = nodeData[i]
+      if (!node1) continue
+      
+      // Check if this node should join an existing cluster
+      let assignedToCluster = false
+      for (const [clusterId, clusterNodes] of clusterGroups) {
+        for (const existingNodeId of clusterNodes) {
+          const existingNode = nodeData.find(n => n?.recordId === existingNodeId)
+          if (existingNode && shouldBeInSameCluster(node1, existingNode)) {
+            clusterNodes.add(node1.recordId)
+            clusters.set(node1.recordId, clusterId)
+            assignedToCluster = true
+            break
+          }
+        }
+        if (assignedToCluster) break
+      }
+      
+      // If no existing cluster found, create a new one
+      if (!assignedToCluster) {
+        const clusterId = nextClusterId++
+        clusters.set(node1.recordId, clusterId)
+        clusterGroups.set(clusterId, new Set([node1.recordId]))
+      }
+    }
+    
+    return clusters
+  }, [nodeData, matchRules])
+  
   // Get unique UUIDs for display purposes
   const uniqueUUIDs = useMemo(() => {
     return Array.from(new Set(nodeData.map((node) => node.uuid)))
   }, [nodeData])
 
-  const getNodeColor = (uuid: string) => {
-    // Temporary simple coloring - we'll implement proper clustering later
-    if (!uuid) return "#6b7280"
+  const getNodeColor = (recordId: string) => {
+    // Use cluster-based coloring for meaningful node grouping
+    if (!recordId || !nodeClusters) return "#6b7280"
     
-    // Simple hash-based color for now
-    let hash = 0
-    for (let i = 0; i < uuid.length; i++) {
-      hash = uuid.charCodeAt(i) + ((hash << 5) - hash)
-    }
+    const clusterId = nodeClusters.get(recordId)
+    if (clusterId === undefined) return "#6b7280"
     
-    const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"]
-    return colors[Math.abs(hash) % colors.length]
+    // Assign colors based on cluster membership
+    const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16", "#f97316", "#6366f1"]
+    return colors[clusterId % colors.length]
   }
 
   // Helper to get rule fields by rule name
@@ -609,29 +706,39 @@ export default function GraphExplorer() {
             </CardContent>
           </Card>
 
-          {/* Unified Profiles (was Node Groups) */}
+          {/* Node Clusters */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Unified Profiles</CardTitle>
+              <CardTitle className="text-lg">Node Clusters</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {uniqueUUIDs.map((uuid, index) => {
-                const nodeCount = nodeData.filter((node) => node.uuid === uuid).length
-                const recordIds = nodeData.filter((node) => node.uuid === uuid).map((node) => node.recordId)
-                return (
-                  <div key={uuid} className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-full" style={{ backgroundColor: getNodeColor(uuid) }}></div>
+              {(() => {
+                // Group nodes by cluster
+                const clusterGroups = new Map<number, { nodes: NodeData[], color: string }>()
+                nodeData.forEach(node => {
+                  const clusterId = nodeClusters.get(node.recordId)
+                  if (clusterId !== undefined) {
+                    if (!clusterGroups.has(clusterId)) {
+                      clusterGroups.set(clusterId, { nodes: [], color: getNodeColor(node.recordId) })
+                    }
+                    clusterGroups.get(clusterId)!.nodes.push(node)
+                  }
+                })
+                
+                return Array.from(clusterGroups.entries()).map(([clusterId, { nodes, color }]) => (
+                  <div key={clusterId} className="flex items-center gap-3">
+                    <div className="w-6 h-6 rounded-full" style={{ backgroundColor: color }}></div>
                     <div>
-                      <div className="font-medium" style={{ color: getNodeColor(uuid) }}>
-                        {uuid}
+                      <div className="font-medium" style={{ color: color }}>
+                        Cluster {clusterId + 1}
                       </div>
                       <div className="text-sm text-gray-600">
-                        {nodeCount} records: {recordIds.join(", ")}
+                        {nodes.length} records: {nodes.map(n => n.recordId).join(", ")}
                       </div>
                     </div>
                   </div>
-                )
-              })}
+                ))
+              })()}
             </CardContent>
           </Card>
 
@@ -828,7 +935,7 @@ export default function GraphExplorer() {
                     cx={node.x}
                     cy={node.y}
                     r={isHovered || isSelected ? 35 : 30}
-                    fill={getNodeColor(node.uuid)}
+                    fill={getNodeColor(node.recordId)}
                     stroke="#ffffff"
                     strokeWidth={isHovered || isSelected ? 4 : 3}
                     className="cursor-pointer transition-all duration-200"
