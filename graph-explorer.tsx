@@ -354,55 +354,46 @@ export default function GraphExplorer() {
               }
             }
             
-            // Determine overall status based on rule precedence
-            if (ruleResultsByPrecedence.length > 0) {
-              // Rule-1 (Email) has highest precedence, then Rule-2 (Phone), then Rule-3 (Address)
-              const rule1Result = ruleResultsByPrecedence.find(r => r.ruleName === "Rule-1")
-              const rule2Result = ruleResultsByPrecedence.find(r => r.ruleName === "Rule-2")
-              const rule3Result = ruleResultsByPrecedence.find(r => r.ruleName === "Rule-3")
-              
-              // If Rule-1 has a negative result, it overrides everything
-              if (rule1Result && rule1Result.status === 'negative') {
-                overallStatus = 'negative'
-                matchingFields = []
-                nonMatchingFields = (rule1Result.result as any).nonMatchingFields || []
-                rulesUsed = rule1Result.result.rulesUsed || []
-              }
-              // If Rule-1 has a positive result, check Rule-2
-              else if (rule1Result && rule1Result.status === 'positive') {
-                // If Rule-2 has a negative result, it overrides Rule-1's positive
-                if (rule2Result && rule2Result.status === 'negative') {
-                  overallStatus = 'negative'
-                  matchingFields = []
-                  nonMatchingFields = (rule2Result.result as any).nonMatchingFields || []
-                  rulesUsed = rule2Result.result.rulesUsed || []
-                } else {
-                  // Rule-1 positive stands
-                  overallStatus = 'positive'
-                  matchingFields = (rule1Result.result as any).matchingFields || []
-                  nonMatchingFields = (rule1Result.result as any).nonMatchingFields || []
-                  rulesUsed = rule1Result.result.rulesUsed || []
-                }
-              }
-              // If Rule-1 has no result, check Rule-2
-              else if (rule2Result) {
-                overallStatus = rule2Result.status
-                if (rule2Result.status === 'positive' || rule2Result.status === 'negative') {
-                  matchingFields = (rule2Result.result as any).matchingFields || []
-                  nonMatchingFields = (rule2Result.result as any).nonMatchingFields || []
-                }
-                rulesUsed = rule2Result.result.rulesUsed || []
-              }
-              // If only Rule-3 has results
-              else if (rule3Result) {
-                overallStatus = rule3Result.status
-                if (rule3Result.status === 'positive' || rule3Result.status === 'negative') {
-                  matchingFields = (rule3Result.result as any).matchingFields || []
-                  nonMatchingFields = (rule3Result.result as any).nonMatchingFields || []
-                }
-                rulesUsed = rule3Result.result.rulesUsed || []
-              }
-            }
+                                            // Determine overall status based on OR logic across all rule chains
+                                if (ruleResultsByPrecedence.length > 0) {
+                                  // Check if ANY rule chain resulted in positive (OR logic)
+                                  const hasPositiveResult = ruleResultsByPrecedence.some(r => r.status === 'positive')
+                                  
+                                  if (hasPositiveResult) {
+                                    // If any rule chain is positive, overall is positive
+                                    overallStatus = 'positive'
+                                    // Find the first positive result to get its details
+                                    const positiveResult = ruleResultsByPrecedence.find(r => r.status === 'positive')
+                                    if (positiveResult) {
+                                      matchingFields = (positiveResult.result as any).matchingFields || []
+                                      nonMatchingFields = (positiveResult.result as any).nonMatchingFields || []
+                                      rulesUsed = positiveResult.result.rulesUsed || []
+                                    }
+                                  } else {
+                                    // If no positive results, check for negative results
+                                    const hasNegativeResult = ruleResultsByPrecedence.some(r => r.status === 'negative')
+                                    
+                                    if (hasNegativeResult) {
+                                      overallStatus = 'negative'
+                                      // Find the first negative result to get its details
+                                      const negativeResult = ruleResultsByPrecedence.find(r => r.status === 'negative')
+                                      if (negativeResult) {
+                                        matchingFields = []
+                                        nonMatchingFields = (negativeResult.result as any).nonMatchingFields || []
+                                        rulesUsed = negativeResult.result.rulesUsed || []
+                                      }
+                                    } else {
+                                      // Only neutral results
+                                      overallStatus = 'neutral'
+                                      const neutralResult = ruleResultsByPrecedence[0]
+                                      if (neutralResult) {
+                                        matchingFields = (neutralResult.result as any).matchingFields || []
+                                        nonMatchingFields = (neutralResult.result as any).nonMatchingFields || []
+                                        rulesUsed = neutralResult.result.rulesUsed || []
+                                      }
+                                    }
+                                  }
+                                }
             
             // Only create edges for positive or negative relationships
             if (overallStatus !== 'neutral') {
