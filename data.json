@@ -10,7 +10,8 @@
         "Middle Name": "Grace",
         "Last Name": "Vance",
         "Email": "e.vance@example.com",
-        "Phone": "(650) 555-0111"
+        "Phone": "(650) 555-0111",
+        "Party": ""
       },
       {
         "Record-Id": "id-002",
@@ -20,7 +21,8 @@
         "Middle Name": "Grace",
         "Last Name": "Vance",
         "Email": "e.vance@example.com",
-        "Phone": "(650) 555-0111"
+        "Phone": "(650) 555-0111",
+        "Party": ""
       },
       {
         "Record-Id": "id-003",
@@ -30,7 +32,8 @@
         "Middle Name": "Grace",
         "Last Name": "Vance",
         "Email": "e.vance@example.com",
-        "Phone": "(650) 555-0111"
+        "Phone": "(650) 555-0111",
+        "Party": ""
       },
       {
         "Record-Id": "id-004",
@@ -40,7 +43,8 @@
         "Middle Name": "",
         "Last Name": "Vance",
         "Email": "e.vance@example.com",
-        "Phone": "(650) 555-0111"
+        "Phone": "(650) 555-0111",
+        "Party": ""
       },
       {
         "Record-Id": "id-005",
@@ -50,7 +54,8 @@
         "Middle Name": "",
         "Last Name": "",
         "Email": "e.vance@example.com",
-        "Phone": "(650) 555-0111"
+        "Phone": "(650) 555-0111",
+        "Party": ""
       },
       {
         "Record-Id": "id-006",
@@ -60,7 +65,8 @@
         "Middle Name": "Jordan",
         "Last Name": "Vance",
         "Email": "e.vance@example.com",
-        "Phone": "(650) 555-0111"
+        "Phone": "(650) 555-0111",
+        "Party": ""
       },
       {
         "Record-Id": "id-007",
@@ -70,7 +76,8 @@
         "Middle Name": "Jordan",
         "Last Name": "Vance",
         "Email": "e.vance@example.com",
-        "Phone": "(650) 555-0111"
+        "Phone": "(650) 555-0111",
+        "Party": ""
       },
       {
         "Record-Id": "id-008",
@@ -80,7 +87,8 @@
         "Middle Name": "Jordan",
         "Last Name": "Vance",
         "Email": "e.vance@example.com",
-        "Phone": "(650) 555-0111"
+        "Phone": "(650) 555-0111",
+        "Party": ""
       },
       {
         "Record-Id": "id-009",
@@ -90,7 +98,8 @@
         "Middle Name": "Jordan",
         "Last Name": "Vance",
         "Email": "e.vance@example.com",
-        "Phone": "(408) 111-0222"
+        "Phone": "(408) 111-0222",
+        "Party": ""
       }
     ]
   },
@@ -103,7 +112,8 @@
         "First Name": "Jane",
         "Last Name": "Doe",
         "Email": "jane@doe",
-        "Phone": "19911"
+        "Phone": "19911",
+        "Party": ""
       },
       {
         "Record-Id": "id-z002",
@@ -111,7 +121,8 @@
         "First Name": "Jane",
         "Last Name": "Doe",
         "Email": "jane@doe",
-        "Phone": "19911"
+        "Phone": "19911",
+        "Party": ""
       },
       {
         "Record-Id": "id-z003",
@@ -119,7 +130,8 @@
         "First Name": "Jane",
         "Last Name": "Doe",
         "Email": "jane@doe",
-        "Phone": "19911"
+        "Phone": "19911",
+        "Party": ""
       }
     ]
   },
@@ -132,7 +144,8 @@
         "First Name": "Jane",
         "Last Name": "Doe",
         "Email": "jane@doe",
-        "Phone": ""
+        "Phone": "",
+        "Party": ""
       },
       {
         "Record-Id": "id-002",
@@ -140,7 +153,8 @@
         "First Name": "Jane",
         "Last Name": "Doe",
         "Email": "jane@doe",
-        "Phone": "19911"
+        "Phone": "19911",
+        "Party": ""
       },
       {
         "Record-Id": "id-003",
@@ -148,7 +162,8 @@
         "First Name": "Jane",
         "Last Name": "Doe",
         "Email": "",
-        "Phone": "19911"
+        "Phone": "19911",
+        "Party": ""
       }
     ]
   },
@@ -160,28 +175,121 @@
         "Salutation": "Jr",
         "First Name": "Jane",
         "Last Name": "Doe",
-        "Email": "jane@doe"
+        "Email": "jane@doe",
+        "Phone": "",
+        "Party": ""
       },
       {
         "Record-Id": "id-002",
         "Salutation": "Sr",
         "First Name": "Jane",
         "Last Name": "Doe",
-        "Email": "jane@doe"
+        "Email": "jane@doe",
+        "Phone": "",
+        "Party": ""
       },
       {
         "Record-Id": "id-003",
         "Salutation": "",
         "First Name": "Jane",
         "Last Name": "Doe",
-        "Email": "jane@doe"
+        "Email": "jane@doe",
+        "Phone": "",
+        "Party": ""
       },
       {
         "Record-Id": "id-004",
         "Salutation": "",
         "First Name": "Jane",
         "Last Name": "Doe",
-        "Email": ""
+        "Email": "",
+        "Phone": "",
+        "Party": ""
+      }
+    ]
+  },
+  {
+    "name": "Data Example 5",
+    "data": [
+      {
+        "Record-Id": "id-001",
+        "UUDI": "uid-0001",
+        "Salutation": "",
+        "First Name": "John",
+        "Last Name": "Smith",
+        "Email": "estate@cc.com",
+        "Phone": "1800",
+        "Party": "Party-001"
+      },
+      {
+        "Record-Id": "id-002",
+        "UUDI": "uid-0002",
+        "Salutation": "",
+        "First Name": "John",
+        "Last Name": "Smith",
+        "Email": "estate@cc.com",
+        "Phone": "1800",
+        "Party": "Party-002"
+      },
+      {
+        "Record-Id": "id-003",
+        "UUDI": "uid-0003",
+        "Salutation": "",
+        "First Name": "",
+        "Last Name": "Smith",
+        "Email": "estate@cc.com",
+        "Phone": "1800",
+        "Party": "Party-003"
+      },
+      {
+        "Record-Id": "id-004",
+        "UUDI": "uid-0004",
+        "Salutation": "",
+        "First Name": "",
+        "Last Name": "Smith",
+        "Email": "estate@cc.com",
+        "Phone": "1800",
+        "Party": "Party-004"
+      },
+      {
+        "Record-Id": "id-005",
+        "UUDI": "uid-0005",
+        "Salutation": "",
+        "First Name": "",
+        "Last Name": "",
+        "Email": "estate@cc.com",
+        "Phone": "1800",
+        "Party": "Party-006"
+      },
+      {
+        "Record-Id": "id-006",
+        "UUDI": "uid-0006",
+        "Salutation": "",
+        "First Name": "",
+        "Last Name": "Smith",
+        "Email": "estate@cc.com",
+        "Phone": "1800",
+        "Party": "Party-006"
+      },
+      {
+        "Record-Id": "id-007",
+        "UUDI": "uid-0007",
+        "Salutation": "",
+        "First Name": "Michael",
+        "Last Name": "Smith",
+        "Email": "estate@cc.com",
+        "Phone": "1800",
+        "Party": "Party-006"
+      },
+      {
+        "Record-Id": "id-008",
+        "UUDI": "uid-0008",
+        "Salutation": "",
+        "First Name": "Michael",
+        "Last Name": "Smith",
+        "Email": "estate@cc.com",
+        "Phone": "1800",
+        "Party": "Party-007"
       }
     ]
   }

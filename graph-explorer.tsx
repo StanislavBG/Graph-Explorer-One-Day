@@ -14,6 +14,7 @@ interface NodeData {
   lastName?: string
   email?: string
   phone?: string
+  party?: string
   x: number
   y: number
 }
@@ -96,6 +97,17 @@ const matchRules = [
             children: [],
           },
         ],
+      },
+    ],
+  },
+  {
+    name: "Rule-14",
+    fields: ["party", "phone"],
+    children: [
+      {
+        name: "Rule-15",
+        fields: ["phone"],
+        children: [],
       },
     ],
   },
@@ -252,10 +264,13 @@ export default function GraphExplorer() {
     lastName: string
     email: string
     phone: string
+    party: string
   }>>([
-    { recordId: "id-001", salutation: "", firstName: "", lastName: "", email: "", phone: "" },
-    { recordId: "id-002", salutation: "", firstName: "", lastName: "", email: "", phone: "" }
+    { recordId: "id-001", salutation: "", firstName: "", lastName: "", email: "", phone: "", party: "" },
+    { recordId: "id-002", salutation: "", firstName: "", lastName: "", email: "", phone: "", party: "" }
   ])
+
+
 
   // For dynamic sizing
   const svgRef = useRef<SVGSVGElement | null>(null)
@@ -264,6 +279,8 @@ export default function GraphExplorer() {
   useEffect(() => {
     setIsClient(true)
   }, [])
+
+
 
   useEffect(() => {
     function updateSize() {
@@ -290,7 +307,8 @@ export default function GraphExplorer() {
         "First Name": record.firstName,
         "Last Name": record.lastName,
         "Email": record.email,
-        "Phone": record.phone
+        "Phone": record.phone,
+        "Party": record.party
       }))
     : rawData[selectedDataExample]?.data || []
   
@@ -313,6 +331,7 @@ export default function GraphExplorer() {
         lastName: record["Last Name"] || "",
         email: record["Email"] || "",
         phone: record["Phone"] || "",
+        party: record["Party"] || "",
         x,
         y,
       }
@@ -880,7 +899,7 @@ export default function GraphExplorer() {
   }, [finalNodeData])
 
   // Helper functions for dynamic data creation
-  const addDynamicRecord = () => {
+  const addEmptyRecord = () => {
     const newId = `id-${String(dynamicRecords.length + 1).padStart(3, '0')}`
     setDynamicRecords([...dynamicRecords, {
       recordId: newId,
@@ -888,7 +907,21 @@ export default function GraphExplorer() {
       firstName: "",
       lastName: "",
       email: "",
-      phone: ""
+      phone: "",
+      party: ""
+    }])
+  }
+
+  const addFullRecord = () => {
+    const newId = `id-${String(dynamicRecords.length + 1).padStart(3, '0')}`
+    setDynamicRecords([...dynamicRecords, {
+      recordId: newId,
+      salutation: "Mr.",
+      firstName: "John",
+      lastName: "Doe",
+      email: "john.doe@example.com",
+      phone: "(555) 123-4567",
+      party: "Party-001"
     }])
   }
 
@@ -903,6 +936,8 @@ export default function GraphExplorer() {
     updatedRecords[index] = { ...updatedRecords[index], [field]: value }
     setDynamicRecords(updatedRecords)
   }
+
+
 
   const getNodeColor = (recordId: string) => {
     // Use cluster-based coloring for meaningful node grouping
@@ -1405,6 +1440,9 @@ export default function GraphExplorer() {
             <div className="mt-2 text-xs text-gray-600">
               <strong>Current Example:</strong> {selectedDataExample === -1 ? "NEW - Custom Data" : rawData[selectedDataExample]?.name} - 
               Switch between examples to see how the clustering algorithm performs on different data sets.
+              {selectedDataExample !== -1 && (
+                <span className="block mt-1 text-gray-600">💡 <strong>Note:</strong> Example data is read-only. Use "NEW - Create Custom Data" to edit fields.</span>
+              )}
             </div>
           </div>
 
@@ -1412,13 +1450,23 @@ export default function GraphExplorer() {
           {selectedDataExample === -1 && (
             <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-blue-800">💡 <strong>Tip:</strong> Edit cells directly in the table below!</span>
-                <button
-                  onClick={addDynamicRecord}
-                  className="px-3 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
-                >
-                  + Add Record
-                </button>
+                <span className="text-sm text-blue-800">💡 <strong>Tip:</strong> All fields are editable except Record-Id and UUID (shaded gray)</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={addEmptyRecord}
+                    className="px-3 py-1 text-xs bg-gray-500 hover:bg-gray-600 text-white rounded transition-colors"
+                    title="Add a completely empty record"
+                  >
+                    + Add Empty
+                  </button>
+                  <button
+                    onClick={addFullRecord}
+                    className="px-3 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
+                    title="Add a record with sample data"
+                  >
+                    + Add Full
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -1427,13 +1475,14 @@ export default function GraphExplorer() {
             <thead className="bg-gray-100">
               <tr>
                 {selectedDataExample === -1 && <th className="px-1 py-1 border w-8"></th>}
-                <th className="px-2 py-1 border">Record ID</th>
-                <th className="px-2 py-1 border">UUDI</th>
-                <th className="px-2 py-1 border">Salutation</th>
-                <th className="px-2 py-1 border">First Name</th>
-                <th className="px-2 py-1 border">Last Name</th>
-                <th className="px-2 py-1 border">Email</th>
-                <th className="px-2 py-1 border">Phone</th>
+                <th className="px-2 py-1 border text-gray-600" title="Not editable">Record ID</th>
+                <th className="px-2 py-1 border text-gray-600" title="Not editable">UUID</th>
+                <th className="px-2 py-1 border text-green-700" title="Editable">Salutation</th>
+                <th className="px-2 py-1 border text-green-700" title="Editable">First Name</th>
+                <th className="px-2 py-1 border text-green-700" title="Editable">Last Name</th>
+                <th className="px-2 py-1 border text-green-700" title="Editable">Email</th>
+                <th className="px-2 py-1 border text-green-700" title="Editable">Phone</th>
+                <th className="px-2 py-1 border text-green-700" title="Editable">Party</th>
               </tr>
             </thead>
                                             <tbody>
@@ -1459,8 +1508,8 @@ export default function GraphExplorer() {
                               </button>
                             </td>
                           )}
-                          <td className="px-2 py-1 border font-mono">{node.recordId}</td>
-                          <td className="px-2 py-1 border font-mono">{node.uuid || "—"}</td>
+                          <td className="px-2 py-1 border font-mono bg-gray-100 text-gray-600">{node.recordId}</td>
+                          <td className="px-2 py-1 border font-mono bg-gray-100 text-gray-600">{node.uuid || "—"}</td>
                           <td className="px-2 py-1 border">
                             {isCustomData ? (
                               <input
@@ -1524,6 +1573,19 @@ export default function GraphExplorer() {
                               />
                             ) : (
                               node.phone || "—"
+                            )}
+                          </td>
+                          <td className="px-2 py-1 border">
+                            {isCustomData ? (
+                              <input
+                                type="text"
+                                value={dynamicRecord?.party || ""}
+                                onChange={(e) => updateDynamicRecord(index, 'party', e.target.value)}
+                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                placeholder="Party-001"
+                              />
+                            ) : (
+                              node.party || "—"
                             )}
                           </td>
                         </tr>
@@ -1597,6 +1659,16 @@ export default function GraphExplorer() {
                   <div className="grid grid-cols-3 gap-2 text-sm">
                     <span className="font-medium text-gray-600">Email:</span>
                     <span className="col-span-2 break-all">{(selectedNode || hoveredNode)!.email || "—"}</span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <span className="font-medium text-gray-600">Phone:</span>
+                    <span className="col-span-2">{(selectedNode || hoveredNode)!.phone || "—"}</span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <span className="font-medium text-gray-600">Party:</span>
+                    <span className="col-span-2">{(selectedNode || hoveredNode)!.party || "—"}</span>
                   </div>
                 </div>
 
@@ -1820,7 +1892,7 @@ export default function GraphExplorer() {
                     <div className="font-semibold">Field</div>
                     <div className="font-semibold">Value 1</div>
                     <div className="font-semibold">Value 2</div>
-                    {['salutation', 'firstName', 'lastName', 'email', 'phone'].map((field) => {
+                    {['salutation', 'firstName', 'lastName', 'email', 'phone', 'party'].map((field) => {
                       const fromNode = getNodeByRecordId((selectedEdge || hoveredEdge)!.from)
                       const toNode = getNodeByRecordId((selectedEdge || hoveredEdge)!.to)
                       const fromValue = fromNode?.[field as keyof NodeData] || "—"
@@ -1964,6 +2036,20 @@ export default function GraphExplorer() {
                             <div className="w-1.5 h-1.5 rounded-full bg-purple-300"></div>
                             <span className="text-purple-500">Rule-13: First+Address</span>
                           </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Rule-14: Party+Phone-based matching */}
+                    <div className="border-l-4 border-orange-500 pl-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                        <span className="font-semibold text-orange-700">Rule-14: Party+Phone-based matching</span>
+                      </div>
+                      <div className="ml-4 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-orange-300"></div>
+                          <span className="text-orange-500">Rule-15: Phone only</span>
                         </div>
                       </div>
                     </div>
