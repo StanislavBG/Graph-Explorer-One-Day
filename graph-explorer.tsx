@@ -11,7 +11,6 @@ interface NodeData {
   uuid: string
   salutation?: string
   firstName?: string
-  middleName?: string
   lastName?: string
   email?: string
   phone?: string
@@ -271,7 +270,7 @@ export default function GraphExplorer() {
             uuid: item["UUDI"]?.toString() || '',
             salutation: item["Salutation"]?.toString() || '',
             firstName: item["First Name"]?.toString() || '',
-            middleName: item["Middle Name"]?.toString() || '',
+    
             lastName: item["Last Name"]?.toString() || '',
             email: item["Email"]?.toString() || '',
             phone: item["Phone"]?.toString() || '',
@@ -451,7 +450,7 @@ export default function GraphExplorer() {
   }
 
   const formatName = (node: NodeData) => {
-    const parts = [node.salutation, node.firstName, node.middleName, node.lastName].filter(Boolean)
+    const parts = [node.salutation, node.firstName, node.lastName].filter(Boolean)
     return parts.length > 0 ? parts.join(" ") : "No name"
   }
 
@@ -642,7 +641,7 @@ export default function GraphExplorer() {
     )
   }
 
-  // Clustering logic based on overall edges with negative edge precedence
+  // Clustering logic based on transitivity through positive paths
   const nodeClusters = useMemo(() => {
     if (nodeData.length === 0) return new Map<string, number>()
     
@@ -650,105 +649,57 @@ export default function GraphExplorer() {
     const clusterGroups = new Map<number, Set<string>>()
     let nextClusterId = 1
     
-    // Helper function to check if two nodes can be in the same cluster
-    const canBeInSameCluster = (node1: NodeData, node2: NodeData): boolean => {
-      // Find the edge between these two nodes
-      const edge = edges.find(e => 
-        (e.from === node1.recordId && e.to === node2.recordId) ||
-        (e.from === node2.recordId && e.to === node1.recordId)
+    // Helper function to find all nodes reachable through positive paths from a starting node
+    const findConnectedComponent = (startNodeId: string, visited: Set<string> = new Set()): Set<string> => {
+      if (visited.has(startNodeId)) return visited
+      visited.add(startNodeId)
+      
+      // Find all positive edges from this node
+      const positiveEdges = edges.filter(e => 
+        e.type === 'positive' && 
+        (e.from === startNodeId || e.to === startNodeId)
       )
       
-      // If there's a negative edge, they CANNOT be in the same cluster
-      if (edge?.type === 'negative') {
-        return false
+      // Recursively explore all positive connections
+      for (const edge of positiveEdges) {
+        const nextNodeId = edge.from === startNodeId ? edge.to : edge.from
+        if (!visited.has(nextNodeId)) {
+          findConnectedComponent(nextNodeId, visited)
+        }
       }
       
-      // If there's a positive edge, they CAN be in the same cluster
-      if (edge?.type === 'positive') {
-        return true
-      }
-      
-      // If no edge (neutral), they can be in the same cluster
-      return true
+      return visited
     }
     
-    // Helper function to check if a node can join a specific cluster
-    const canJoinCluster = (node: NodeData, clusterNodes: Set<string>): boolean => {
-      for (const existingNodeId of clusterNodes) {
-        const existingNode = nodeData.find(n => n?.recordId === existingNodeId)
-        if (existingNode && !canBeInSameCluster(node, existingNode)) {
-          return false
-        }
+    // Find all connected components through positive paths
+    const visitedNodes = new Set<string>()
+    const connectedComponents: Set<string>[] = []
+    
+    for (const node of nodeData) {
+      if (!node || visitedNodes.has(node.recordId)) continue
+      
+      // Find all nodes connected to this node through positive paths
+      const component = findConnectedComponent(node.recordId)
+      
+      // Add all nodes in this component to visited
+      for (const nodeId of component) {
+        visitedNodes.add(nodeId)
       }
-      return true
+      
+      connectedComponents.push(component)
     }
     
-    // First pass: Create initial clusters based on positive connections
-    for (let i = 0; i < nodeData.length; i++) {
-      const node1 = nodeData[i]
-      if (!node1) continue
+    // Create clusters from connected components
+    for (let i = 0; i < connectedComponents.length; i++) {
+      const component = connectedComponents[i]
+      const clusterId = nextClusterId++
       
-      // Check if this node can join an existing cluster
-      let assignedToCluster = false
-      for (const [clusterId, clusterNodes] of clusterGroups) {
-        if (canJoinCluster(node1, clusterNodes)) {
-          clusterNodes.add(node1.recordId)
-          clusters.set(node1.recordId, clusterId)
-          assignedToCluster = true
-          break
-        }
+      // Assign all nodes in this component to the same cluster
+      for (const nodeId of component) {
+        clusters.set(nodeId, clusterId)
       }
       
-      // If no existing cluster found, create a new one
-      if (!assignedToCluster) {
-        const clusterId = nextClusterId++
-        clusters.set(node1.recordId, clusterId)
-        clusterGroups.set(clusterId, new Set([node1.recordId]))
-      }
-    }
-    
-    // Second pass: Split clusters that have negative connections
-    let hasChanges = true
-    while (hasChanges) {
-      hasChanges = false
-      
-      for (const [clusterId, clusterNodes] of clusterGroups) {
-        if (clusterNodes.size <= 1) continue
-        
-        const nodesToRemove: string[] = []
-        
-        // Check each pair of nodes in the cluster
-        for (const nodeId1 of clusterNodes) {
-          for (const nodeId2 of clusterNodes) {
-            if (nodeId1 === nodeId2) continue
-            
-            const node1 = nodeData.find(n => n?.recordId === nodeId1)
-            const node2 = nodeData.find(n => n?.recordId === nodeId2)
-            
-            if (node1 && node2 && !canBeInSameCluster(node1, node2)) {
-              // These nodes shouldn't be together, remove one from this cluster
-              nodesToRemove.push(nodeId2)
-              hasChanges = true
-            }
-          }
-        }
-        
-        // Remove nodes that can't be in this cluster
-        for (const nodeId of nodesToRemove) {
-          clusterNodes.delete(nodeId)
-          clusters.delete(nodeId)
-        }
-      }
-      
-      // Create new clusters for removed nodes
-      for (const nodeId of clusters.keys()) {
-        if (!Array.from(clusterGroups.values()).some(cluster => cluster.has(nodeId))) {
-          // This node was removed but not reassigned, create a new cluster
-          const clusterId = nextClusterId++
-          clusters.set(nodeId, clusterId)
-          clusterGroups.set(clusterId, new Set([nodeId]))
-        }
-      }
+      clusterGroups.set(clusterId, component)
     }
     
     return clusters
@@ -920,10 +871,7 @@ export default function GraphExplorer() {
                   <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
                   <span>First Name</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                  <span>Middle Name</span>
-                </div>
+
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
                   <span>Last Name</span>
@@ -1091,18 +1039,17 @@ export default function GraphExplorer() {
         {/* Data Table Below the Graph */}
         <div className="w-full bg-white border-t border-gray-200 overflow-x-auto mt-4" style={{ fontSize: '12px' }}>
           <table className="min-w-full text-xs text-left">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="px-2 py-1 border">Record ID</th>
-                <th className="px-2 py-1 border">UUDI</th>
-                <th className="px-2 py-1 border">Salutation</th>
-                <th className="px-2 py-1 border">First Name</th>
-                <th className="px-2 py-1 border">Middle Name</th>
-                <th className="px-2 py-1 border">Last Name</th>
-                <th className="px-2 py-1 border">Email</th>
-                <th className="px-2 py-1 border">Phone</th>
-              </tr>
-            </thead>
+                                    <thead className="bg-gray-100">
+                          <tr>
+                            <th className="px-2 py-1 border">Record ID</th>
+                            <th className="px-2 py-1 border">UUDI</th>
+                            <th className="px-2 py-1 border">Salutation</th>
+                            <th className="px-2 py-1 border">First Name</th>
+                            <th className="px-2 py-1 border">Last Name</th>
+                            <th className="px-2 py-1 border">Email</th>
+                            <th className="px-2 py-1 border">Phone</th>
+                          </tr>
+                        </thead>
             <tbody>
               {nodeData.map((node) => (
                 <tr
@@ -1115,7 +1062,6 @@ export default function GraphExplorer() {
                   <td className="px-2 py-1 border font-mono">{node.uuid}</td>
                   <td className="px-2 py-1 border">{node.salutation || "—"}</td>
                   <td className="px-2 py-1 border">{node.firstName || "—"}</td>
-                  <td className="px-2 py-1 border">{node.middleName || "—"}</td>
                   <td className="px-2 py-1 border">{node.lastName || "—"}</td>
                   <td className="px-2 py-1 border break-all">{node.email || "—"}</td>
                   <td className="px-2 py-1 border">{node.phone || "—"}</td>
@@ -1179,10 +1125,7 @@ export default function GraphExplorer() {
                     <span className="col-span-2">{(selectedNode || hoveredNode)!.firstName || "—"}</span>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 text-sm">
-                    <span className="font-medium text-gray-600">Middle Name:</span>
-                    <span className="col-span-2">{(selectedNode || hoveredNode)!.middleName || "—"}</span>
-                  </div>
+
 
                   <div className="grid grid-cols-3 gap-2 text-sm">
                     <span className="font-medium text-gray-600">Last Name:</span>
@@ -1415,7 +1358,7 @@ export default function GraphExplorer() {
                     <div className="font-semibold">Field</div>
                     <div className="font-semibold">Value 1</div>
                     <div className="font-semibold">Value 2</div>
-                    {['salutation', 'firstName', 'middleName', 'lastName', 'email', 'phone'].map((field) => {
+                    {['salutation', 'firstName', 'lastName', 'email', 'phone'].map((field) => {
                       const fromNode = getNodeByRecordId((selectedEdge || hoveredEdge)!.from)
                       const toNode = getNodeByRecordId((selectedEdge || hoveredEdge)!.to)
                       const fromValue = fromNode?.[field as keyof NodeData] || "—"
