@@ -283,8 +283,6 @@ export default function GraphExplorer() {
     email: string
     phone: string
     party: string
-    topLevelMatch: string
-    finalMatch: string
   }>>([])
 
 
@@ -323,8 +321,7 @@ export default function GraphExplorer() {
         email: record["Email"] || "",
         phone: record["Phone"] || "",
         party: record["Party"] || "",
-        topLevelMatch: record["TopLevelMatch"] || "",
-        finalMatch: record["FinalMatch"] || ""
+
       }))
       setEditableData(editableRecords)
     } else {
