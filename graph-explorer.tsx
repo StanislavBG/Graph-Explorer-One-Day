@@ -253,10 +253,10 @@ export default function GraphExplorer() {
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
   const [showRuleModal, setShowRuleModal] = useState(false)
   const [selectedDataExample, setSelectedDataExample] = useState(0) // Index of selected data example
-      const [graphHeight, setGraphHeight] = useState(600) // Resizable graph height - main focus area
+      const [graphHeight, setGraphHeight] = useState(500) // Resizable graph height - main focus area
     const [leftPanelWidth, setLeftPanelWidth] = useState(320) // Resizable left panel width
     const [rightPanelWidth, setRightPanelWidth] = useState(320) // Resizable right panel width
-    const [dataTableHeight, setDataTableHeight] = useState(150) // Resizable data table height - about 1/3 of graph
+    const [dataTableHeight, setDataTableHeight] = useState(300) // Resizable data table height - better visibility
   const [isClient, setIsClient] = useState(false) // Prevent hydration mismatch
   
   // Dynamic data creation state
@@ -1607,8 +1607,8 @@ export default function GraphExplorer() {
           className="relative"
           style={{ 
             height: graphHeight, 
-            minHeight: 400,
-            maxHeight: '80vh'
+            minHeight: 300,
+            maxHeight: '60vh'
           }}
         >
           <svg
@@ -1761,8 +1761,8 @@ export default function GraphExplorer() {
           style={{ 
             fontSize: '12px',
             height: dataTableHeight,
-            minHeight: 120,
-            maxHeight: '25vh'
+            minHeight: 200,
+            maxHeight: '40vh'
           }}
         >
           {/* Compact Data Example Selector */}
