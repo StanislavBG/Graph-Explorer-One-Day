@@ -335,8 +335,8 @@ export default function GraphExplorer() {
   const containerWidth = svgSize.width || 800
   const containerHeight = svgSize.height || 600
   const centerX = containerWidth / 2
-  const centerY = containerHeight / 2
-  const radius = Math.min(containerWidth, containerHeight) * 0.35 // 35% of smaller dimension for better centering
+  const centerY = containerHeight * 0.4 // Move center higher (40% from top instead of 50%)
+  const radius = Math.min(containerWidth, containerHeight) * 0.3 // Reduced to 30% to prevent clipping
 
   // Get the currently selected data set
   const currentData = selectedDataExample === -1 
@@ -366,7 +366,7 @@ export default function GraphExplorer() {
     return currentData.map((record: any, index: number) => {
       // Calculate position in a circle layout
       const angle = (index / currentData.length) * 2 * Math.PI
-      const nodeRadius = Math.min(containerWidth, containerHeight) * 0.3 // 30% of smaller dimension
+      const nodeRadius = Math.min(containerWidth, containerHeight) * 0.25 // Reduced to 25% to prevent clipping
       const x = Math.cos(angle) * nodeRadius + centerX
       const y = Math.sin(angle) * nodeRadius + centerY
       
@@ -1787,7 +1787,7 @@ export default function GraphExplorer() {
                 {/* Data Table Area */}
         <div 
           key={`data-table-${selectedDataExample}`} 
-          className="w-full bg-white border-t border-gray-200 overflow-x-auto mt-4"
+          className="w-full bg-white border-t border-gray-200 overflow-x-auto mt-4 pb-4"
           style={{ 
             fontSize: '12px'
           }}
