@@ -2291,9 +2291,6 @@ export default function GraphExplorer() {
                   <div className="text-xs text-blue-600 mt-1">
                     <strong>Formula:</strong> L1 rules × 1.0 + L2 rules × 0.75 + L3 rules × 0.56 + ...
                   </div>
-                  <div className="text-xs text-blue-600">
-                    <strong>Interpretation:</strong> Positive = similarity, Negative = difference
-                  </div>
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
