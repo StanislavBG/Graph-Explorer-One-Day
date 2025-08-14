@@ -127,24 +127,30 @@ function checkForConflicts(node1: any, node2: any): boolean {
 function findConflictingFields(node1: any, node2: any): string[] {
   const conflicts: string[] = []
   
+  // Check firstName conflicts
   if (node1.firstName !== undefined && node1.firstName !== "" && 
       node2.firstName !== undefined && node2.firstName !== "" && 
       node1.firstName !== node2.firstName) {
-    conflicts.push('firstName')
+    conflicts.push("firstName")
   }
   
+  // Check lastName conflicts
   if (node1.lastName !== undefined && node1.lastName !== "" && 
       node2.lastName !== undefined && node2.lastName !== "" && 
       node1.lastName !== node2.lastName) {
-    conflicts.push('lastName')
+    conflicts.push("lastName")
   }
   
   return conflicts
 }
 
-type RuleEvalResult =
-  | { status: "positive" | "negative"; matchingFields: string[]; nonMatchingFields: string[]; rulesUsed: string[][] }
-  | { status: "unknown"; rulesUsed: string[][] };
+// --- Types for Rule Evaluation ---
+type RuleEvalResult = {
+  status: 'positive' | 'negative' | 'neutral' | 'unknown'
+  matchingFields: string[]
+  nonMatchingFields: string[]
+  rulesUsed: string[][]
+}
 
 // --- Rule Evaluation (OR logic for all children, returns all paths) ---
 function evaluateRuleAll(rule: MatchRule, node1: any, node2: any, path: string[] = []): RuleEvalResult[] {
@@ -167,13 +173,23 @@ function evaluateRuleAll(rule: MatchRule, node1: any, node2: any, path: string[]
       // Collect all unknown paths
       unknownPaths = unknownPaths.concat(childResults.filter(r => r.status === "unknown").flatMap(r => r.rulesUsed))
     }
-    if (results.length > 0) {
-      return results
-    }
-    if (unknownPaths.length > 0) {
-      return unknownPaths.map(p => ({ status: "unknown", rulesUsed: [p] }))
-    }
-    return [{ status: "unknown", rulesUsed: [[...path, rule.name]] }]
+          if (results.length > 0) {
+        return results
+      }
+      if (unknownPaths.length > 0) {
+        return unknownPaths.map(p => ({ 
+          status: "unknown", 
+          rulesUsed: [p],
+          matchingFields: [],
+          nonMatchingFields: []
+        }))
+      }
+      return [{ 
+        status: "unknown", 
+        rulesUsed: [[...path, rule.name]],
+        matchingFields: [],
+        nonMatchingFields: []
+      }]
   }
   
   // All fields present, compare
@@ -224,13 +240,11 @@ export default function GraphExplorer() {
   const [selectedNode, setSelectedNode] = useState<NodeData | null>(null)
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
   const [showRuleModal, setShowRuleModal] = useState(false)
-
+  const [selectedDataExample, setSelectedDataExample] = useState(0) // Index of selected data example
 
   // For dynamic sizing
   const svgRef = useRef<SVGSVGElement | null>(null)
   const [svgSize, setSvgSize] = useState({ width: 800, height: 600 })
-
-
 
   useEffect(() => {
     function updateSize() {
@@ -249,44 +263,33 @@ export default function GraphExplorer() {
   const centerY = svgSize.height / 2
   const radius = Math.min(svgSize.width, svgSize.height) * 0.425 // ~85% diameter of the SVG area
 
-  // Transform raw data to our format with positioning
-  const nodeData: NodeData[] = useMemo(() => {
-    try {
-      if (!rawData || !Array.isArray(rawData)) {
-        console.error('Invalid rawData:', rawData)
-        return []
-      }
-      
-      return rawData.map((item: any, index: number) => {
-        try {
-          // Validate required fields
-          if (!item || !item["Record-Id"] || !item["UUDI"]) {
-            console.warn(`Skipping invalid item at index ${index}:`, item)
-            return null
-          }
-          
-          return {
-            recordId: item["Record-Id"]?.toString() || '',
-            uuid: item["UUDI"]?.toString() || '',
-            salutation: item["Salutation"]?.toString() || '',
-            firstName: item["First Name"]?.toString() || '',
+  // Get the currently selected data set
+  const currentData = rawData[selectedDataExample]?.data || []
+  
+  // Process the selected data into the format expected by the app
+  const nodeData = useMemo(() => {
+    if (!currentData || currentData.length === 0) return []
     
-            lastName: item["Last Name"]?.toString() || '',
-            email: item["Email"]?.toString() || '',
-            phone: item["Phone"]?.toString() || '',
-            x: centerX + radius * Math.cos((index * 2 * Math.PI) / rawData.length),
-            y: centerY + radius * Math.sin((index * 2 * Math.PI) / rawData.length),
-          }
-        } catch (error) {
-          console.warn(`Error processing item at index ${index}:`, error)
-          return null
-        }
-      }).filter(Boolean) as NodeData[] // Remove null items
-    } catch (error) {
-      console.error('Error processing rawData:', error)
-      return []
-    }
-  }, [centerX, centerY, radius])
+    return currentData.map((record: any, index: number) => {
+      // Calculate position in a circle layout
+      const angle = (index / currentData.length) * 2 * Math.PI
+      const radius = 200
+      const x = Math.cos(angle) * radius + 400
+      const y = Math.sin(angle) * radius + 300
+      
+      return {
+        recordId: record["Record-Id"] || `record-${index}`,
+        uuid: record["UUDI"] || `uuid-${index}`,
+        salutation: record["Salutation"] || "",
+        firstName: record["First Name"] || "",
+        lastName: record["Last Name"] || "",
+        email: record["Email"] || "",
+        phone: record["Phone"] || "",
+        x,
+        y,
+      }
+    })
+  }, [currentData])
 
   // Generate overall edges based on rule evaluation precedence
   const edges = useMemo(() => {
@@ -935,6 +938,13 @@ export default function GraphExplorer() {
                   This ensures that negative relationships (dis-similarities) are properly respected 
                   and don't get ignored due to longer transitive paths.
                 </p>
+                {selectedDataExample === 1 && (
+                  <div className="mt-3 p-2 bg-yellow-100 border border-yellow-300 rounded text-xs text-yellow-800">
+                    <strong>Note:</strong> Data Example 2 has a different structure - record id-z002 has no salutation 
+                    (empty string), while id-z001 has "Jr" and id-z003 has "Sr". This tests how the algorithm 
+                    handles missing vs. conflicting data.
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -1269,18 +1279,54 @@ export default function GraphExplorer() {
         </div>
         {/* Data Table Below the Graph */}
         <div className="w-full bg-white border-t border-gray-200 overflow-x-auto mt-4" style={{ fontSize: '12px' }}>
+          {/* Data Example Selector */}
+          <div className="p-4 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center gap-4">
+              <label className="text-sm font-medium text-gray-700">Data Example:</label>
+              <select
+                value={selectedDataExample}
+                onChange={(e) => setSelectedDataExample(Number(e.target.value))}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {rawData.map((example, index) => (
+                  <option key={index} value={index}>
+                    {example.name}
+                  </option>
+                ))}
+              </select>
+              <div className="text-xs text-gray-500">
+                {currentData.length} records loaded
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedNode(null)
+                  setSelectedEdge(null)
+                  setHoveredNode(null)
+                  setHoveredEdge(null)
+                }}
+                className="px-3 py-2 text-xs bg-gray-200 hover:bg-gray-300 rounded-md transition-colors"
+              >
+                Reset View
+              </button>
+            </div>
+            <div className="mt-2 text-xs text-gray-600">
+              <strong>Current Example:</strong> {rawData[selectedDataExample]?.name} - 
+              Switch between examples to see how the clustering algorithm performs on different data sets.
+            </div>
+          </div>
+          
           <table className="min-w-full text-xs text-left">
-                                    <thead className="bg-gray-100">
-                          <tr>
-                            <th className="px-2 py-1 border">Record ID</th>
-                            <th className="px-2 py-1 border">UUDI</th>
-                            <th className="px-2 py-1 border">Salutation</th>
-                            <th className="px-2 py-1 border">First Name</th>
-                            <th className="px-2 py-1 border">Last Name</th>
-                            <th className="px-2 py-1 border">Email</th>
-                            <th className="px-2 py-1 border">Phone</th>
-                          </tr>
-                        </thead>
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="px-2 py-1 border">Record ID</th>
+                <th className="px-2 py-1 border">UUDI</th>
+                <th className="px-2 py-1 border">Salutation</th>
+                <th className="px-2 py-1 border">First Name</th>
+                <th className="px-2 py-1 border">Last Name</th>
+                <th className="px-2 py-1 border">Email</th>
+                <th className="px-2 py-1 border">Phone</th>
+              </tr>
+            </thead>
             <tbody>
               {nodeData.map((node) => (
                 <tr
@@ -1290,7 +1336,7 @@ export default function GraphExplorer() {
                   onMouseLeave={() => setHoveredNode(null)}
                 >
                   <td className="px-2 py-1 border font-mono">{node.recordId}</td>
-                  <td className="px-2 py-1 border font-mono">{node.uuid}</td>
+                  <td className="px-2 py-1 border font-mono">{node.uuid || "—"}</td>
                   <td className="px-2 py-1 border">{node.salutation || "—"}</td>
                   <td className="px-2 py-1 border">{node.firstName || "—"}</td>
                   <td className="px-2 py-1 border">{node.lastName || "—"}</td>
