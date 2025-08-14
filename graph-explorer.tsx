@@ -26,6 +26,7 @@ interface Edge {
   matchingFields: string[]
   nonMatchingFields: string[]
   rulesUsed: string[][]
+  matchScore: number
 }
 
 // --- Match Rule Structure ---
@@ -446,8 +447,27 @@ export default function GraphExplorer() {
                 }
               }
             }
+
+            // Calculate Match Score based on rule hierarchy
+            let matchScore = 0
+            let positiveScore = 0
+            let negativeScore = 0
             
-                                            // Determine overall status based on OR logic across all rule chains
+            for (const ruleResult of ruleResultsByPrecedence) {
+              const ruleLevel = ruleResult.result.rulesUsed[0].length
+              const ruleWeight = Math.pow(0.75, ruleLevel - 1) // L1=1.0, L2=0.75, L3=0.56, L4=0.42, etc.
+              
+              if (ruleResult.status === 'positive') {
+                positiveScore += ruleWeight
+              } else if (ruleResult.status === 'negative') {
+                negativeScore += ruleWeight
+              }
+            }
+            
+            // Final match score: positive - negative (can be negative)
+            matchScore = positiveScore - negativeScore
+            
+            // Determine overall status based on OR logic across all rule chains
                                 if (ruleResultsByPrecedence.length > 0) {
                                   // Check if ANY rule chain resulted in positive (OR logic)
                                   const hasPositiveResult = ruleResultsByPrecedence.some(r => r.status === 'positive')
@@ -502,6 +522,7 @@ export default function GraphExplorer() {
                   matchingFields,
                   nonMatchingFields,
                   rulesUsed,
+                  matchScore: parseFloat(matchScore.toFixed(3)), // Round to 3 decimal places
                 }
               )
             }
@@ -703,7 +724,8 @@ export default function GraphExplorer() {
           positiveFields: [],
           negativeFields: [],
           allRulesUsed: [],
-          hasBothTypes: false
+          hasBothTypes: false,
+          matchScore: 0
         })
       }
       
@@ -711,9 +733,11 @@ export default function GraphExplorer() {
       if (edge.type === "positive") {
         unified.positiveFields.push(...edge.matchingFields)
         unified.allRulesUsed.push(...edge.rulesUsed)
+        unified.matchScore += edge.matchScore || 0
       } else {
         unified.negativeFields.push(...edge.nonMatchingFields)
         unified.allRulesUsed.push(...edge.rulesUsed)
+        unified.matchScore -= Math.abs(edge.matchScore || 0)
       }
     })
     
@@ -1652,7 +1676,8 @@ export default function GraphExplorer() {
                 type: unifiedEdge.hasBothTypes ? "mixed" : (unifiedEdge.positiveFields.length > 0 ? "positive" : "negative") as "positive" | "negative" | "mixed",
                 matchingFields: unifiedEdge.positiveFields,
                 nonMatchingFields: unifiedEdge.negativeFields,
-                rulesUsed: unifiedEdge.allRulesUsed
+                rulesUsed: unifiedEdge.allRulesUsed,
+                matchScore: parseFloat((unifiedEdge.matchScore || 0).toFixed(3))
               }
 
               const isHovered = hoveredEdge && (hoveredEdge.from === unifiedEdge.from && hoveredEdge.to === unifiedEdge.to)
@@ -2246,6 +2271,27 @@ export default function GraphExplorer() {
             <Card className="mb-2">
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs font-semibold text-gray-700">Match Rules Evaluation</CardTitle>
+                {/* Match Score Display */}
+                <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-blue-800">Match Score:</span>
+                    <span className={`text-sm font-bold px-2 py-1 rounded ${
+                      (selectedEdge || hoveredEdge)?.matchScore && (selectedEdge || hoveredEdge)?.matchScore > 0 
+                        ? 'bg-green-100 text-green-700' 
+                        : (selectedEdge || hoveredEdge)?.matchScore && (selectedEdge || hoveredEdge)?.matchScore < 0 
+                          ? 'bg-red-100 text-red-700' 
+                          : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {((selectedEdge || hoveredEdge)?.matchScore || 0).toFixed(3)}
+                    </span>
+                  </div>
+                  <div className="text-xs text-blue-600 mt-1">
+                    <strong>Formula:</strong> L1 rules × 1.0 + L2 rules × 0.75 + L3 rules × 0.56 + ...
+                  </div>
+                  <div className="text-xs text-blue-600">
+                    <strong>Interpretation:</strong> Positive = similarity, Negative = difference
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="flex flex-col space-y-1 text-[9px] text-gray-700">
