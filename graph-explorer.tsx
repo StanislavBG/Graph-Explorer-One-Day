@@ -1601,40 +1601,16 @@ export default function GraphExplorer() {
 
       {/* Center Panel - Graph Display - Resizable */}
       <div className="flex-1 relative flex flex-col">
-        {/* Resizable Graph Container */}
+                {/* Graph Container */}
         <div 
           key={`graph-container-${selectedDataExample}`} 
-          className="relative border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors cursor-ns-resize"
+          className="relative"
           style={{ 
             height: graphHeight, 
             minHeight: 300,
             maxHeight: '75vh'
           }}
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
-              e.preventDefault()
-              const startY = e.clientY
-              const startHeight = graphHeight
-              
-                             const handleMouseMove = (moveEvent: MouseEvent) => {
-                 const deltaY = moveEvent.clientY - startY
-                 const newHeight = Math.max(300, Math.min(window.innerHeight * 0.75, startHeight + deltaY))
-                 setGraphHeight(newHeight)
-               }
-              
-              const handleMouseUp = () => {
-                document.removeEventListener('mousemove', handleMouseMove)
-                document.removeEventListener('mouseup', handleMouseUp)
-              }
-              
-              document.addEventListener('mousemove', handleMouseMove)
-              document.addEventListener('mouseup', handleMouseUp)
-            }
-          }}
         >
-          <div className="absolute top-2 left-2 text-xs text-gray-500 bg-white px-2 py-1 rounded">
-            Drag to resize graph area
-          </div>
           <svg
             ref={svgRef}
             width="100%"
@@ -1778,10 +1754,10 @@ export default function GraphExplorer() {
             })}
           </svg>
         </div>
-        {/* Resizable Data Table Area */}
+                {/* Data Table Area */}
         <div 
           key={`data-table-${selectedDataExample}`} 
-          className="w-full bg-white border-t border-gray-200 overflow-x-auto mt-4 relative"
+          className="w-full bg-white border-t border-gray-200 overflow-x-auto mt-4"
           style={{ 
             fontSize: '12px',
             height: dataTableHeight,
@@ -1789,30 +1765,6 @@ export default function GraphExplorer() {
             maxHeight: '35vh'
           }}
         >
-          {/* Resize Handle for Data Table */}
-          <div 
-            className="absolute top-0 left-0 right-0 h-1 bg-gray-300 hover:bg-blue-400 cursor-ns-resize transition-colors"
-            onMouseDown={(e) => {
-              e.preventDefault()
-              const startY = e.clientY
-              const startHeight = dataTableHeight
-              
-                             const handleMouseMove = (moveEvent: MouseEvent) => {
-                 const deltaY = startY - moveEvent.clientY
-                 const newHeight = Math.max(150, Math.min(window.innerHeight * 0.35, startHeight + deltaY))
-                 setDataTableHeight(newHeight)
-               }
-              
-              const handleMouseUp = () => {
-                document.removeEventListener('mousemove', handleMouseMove)
-                document.removeEventListener('mouseup', handleMouseUp)
-              }
-              
-              document.addEventListener('mousemove', handleMouseMove)
-              document.addEventListener('mouseup', handleMouseUp)
-            }}
-          />
-          <div className="pt-2"> {/* Add padding to avoid overlap with resize handle */}
           {/* Compact Data Example Selector */}
           <div key={`data-selector-${selectedDataExample}`} className="p-2 border-b border-gray-200 bg-gray-50">
             <div className="flex items-center gap-3">
@@ -2056,8 +2008,7 @@ export default function GraphExplorer() {
                     })}
                   </tbody>
           </table>
-          </div> {/* Close the pt-2 div */}
-        </div> {/* Close the data table container */}
+        </div>
       </div>
 
       {/* Right Panel - Match Details - Resizable */}
@@ -2537,10 +2488,10 @@ export default function GraphExplorer() {
                         <span className="font-semibold text-orange-700">Rule-14: Party+Phone</span>
                       </div>
                       <div className="ml-4 space-y-1">
-                                                           <div className="flex items-center gap-2">
-                                     <div className="w-1.5 h-1.5 rounded-full bg-orange-300"></div>
-                                     <span className="text-orange-500">Rule-15: Phone only</span>
-                                   </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-orange-300"></div>
+                          <span className="text-orange-500">Rule-15: Phone only</span>
+                        </div>
                       </div>
                     </div>
                   </div>
