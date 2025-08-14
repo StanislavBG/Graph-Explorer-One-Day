@@ -292,5 +292,105 @@
         "Party": "Party-007"
       }
     ]
+  },
+  {
+    "name": "Data Example 6",
+    "data": [
+      {
+        "Record-Id": "R1",
+        "Salutation": "Ms",
+        "First Name": "Jane",
+        "Last Name": "Doe",
+        "Email": "jane.doe@gmail.com",
+        "Phone": "123",
+        "Party": "Party1"
+      },
+      {
+        "Record-Id": "R2",
+        "Salutation": "Ms",
+        "First Name": "Jane",
+        "Last Name": "Doe",
+        "Email": "jane.doe@gmai.com",
+        "Phone": "456",
+        "Party": "Party2"
+      },
+      {
+        "Record-Id": "R3",
+        "Salutation": "Ms",
+        "First Name": "Sandra",
+        "Last Name": "Bullock",
+        "Email": "jane.doe@gmail.com",
+        "Phone": "222",
+        "Party": "Party3"
+      },
+      {
+        "Record-Id": "R4",
+        "Salutation": "Ms",
+        "First Name": "Sandra",
+        "Last Name": "Bullock",
+        "Email": "jane.doe@gmail.com",
+        "Phone": "456",
+        "Party": "Party4"
+      },
+      {
+        "Record-Id": "R5",
+        "Salutation": "",
+        "First Name": "",
+        "Last Name": "",
+        "Email": "jane.doe@gmail.com",
+        "Phone": "456",
+        "Party": ""
+      }
+    ]
+  },
+  {
+    "name": "Data Example 7",
+    "data": [
+      {
+        "Record-Id": "R1",
+        "Salutation": "Ms",
+        "First Name": "Jane",
+        "Last Name": "Doe",
+        "Email": "jane.doe@gmail.com",
+        "Phone": "123",
+        "Party": ""
+      },
+      {
+        "Record-Id": "R2",
+        "Salutation": "Ms",
+        "First Name": "Jane",
+        "Last Name": "Doe",
+        "Email": "jane.doe@gmai.com",
+        "Phone": "456",
+        "Party": ""
+      },
+      {
+        "Record-Id": "R3",
+        "Salutation": "Ms",
+        "First Name": "Sandra",
+        "Last Name": "Bullock",
+        "Email": "jane.doe@gmail.com",
+        "Phone": "222",
+        "Party": ""
+      },
+      {
+        "Record-Id": "R4",
+        "Salutation": "Ms",
+        "First Name": "Sandra",
+        "Last Name": "Bullock",
+        "Email": "jane.doe@gmail.com",
+        "Phone": "456",
+        "Party": ""
+      },
+      {
+        "Record-Id": "R5",
+        "Salutation": "",
+        "First Name": "",
+        "Last Name": "",
+        "Email": "jane.doe@gmail.com",
+        "Phone": "456",
+        "Party": ""
+      }
+    ]
   }
 ] 
