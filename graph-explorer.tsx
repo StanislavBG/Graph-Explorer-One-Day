@@ -241,10 +241,15 @@ export default function GraphExplorer() {
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
   const [showRuleModal, setShowRuleModal] = useState(false)
   const [selectedDataExample, setSelectedDataExample] = useState(0) // Index of selected data example
+  const [isClient, setIsClient] = useState(false) // Prevent hydration mismatch
 
   // For dynamic sizing
   const svgRef = useRef<SVGSVGElement | null>(null)
   const [svgSize, setSvgSize] = useState({ width: 800, height: 600 })
+
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   useEffect(() => {
     function updateSize() {
@@ -279,7 +284,7 @@ export default function GraphExplorer() {
       
       return {
         recordId: record["Record-Id"] || `record-${index}`,
-        uuid: record["UUDI"] || `uuid-${index}`,
+        uuid: `cluster-${index}`, // Temporary UUID, will be updated after clustering
         salutation: record["Salutation"] || "",
         firstName: record["First Name"] || "",
         lastName: record["Last Name"] || "",
@@ -833,10 +838,23 @@ export default function GraphExplorer() {
     }
   }, [nodeClusters, nodeData, edges, detectConstraintViolations])
   
-  // Get unique UUIDs for display purposes
+  // Create final node data with computed UUIDs based on clustering
+  const finalNodeData = useMemo(() => {
+    if (!nodeClusters || nodeData.length === 0) return nodeData
+    
+    return nodeData.map(node => {
+      const clusterId = nodeClusters.get(node.recordId)
+      return {
+        ...node,
+        uuid: clusterId !== undefined ? `cluster-${clusterId}` : `cluster-unknown`
+      }
+    })
+  }, [nodeData, nodeClusters])
+  
+  // Get unique UUIDs for display purposes (now based on clustering)
   const uniqueUUIDs = useMemo(() => {
-    return Array.from(new Set(nodeData.map((node) => node.uuid)))
-  }, [nodeData])
+    return Array.from(new Set(finalNodeData.map((node) => node.uuid)))
+  }, [finalNodeData])
 
   const getNodeColor = (recordId: string) => {
     // Use cluster-based coloring for meaningful node grouping
@@ -863,6 +881,18 @@ export default function GraphExplorer() {
       return null
     }
     return findRule(matchRules) || []
+  }
+
+  // Don't render until client-side to prevent hydration mismatch
+  if (!isClient) {
+    return (
+      <div className="w-full h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading Graph Explorer...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -945,6 +975,13 @@ export default function GraphExplorer() {
                     handles missing vs. conflicting data.
                   </div>
                 )}
+                {selectedDataExample === 2 && (
+                  <div className="mt-3 p-2 bg-orange-100 border border-orange-300 rounded text-xs text-orange-800">
+                    <strong>Note:</strong> Data Example 3 tests missing field handling - id-001 has no phone, 
+                    id-002 has no salutation, and id-003 has no email. This demonstrates how the algorithm 
+                    handles incomplete data and creates edges based on available fields.
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -955,18 +992,18 @@ export default function GraphExplorer() {
               <CardTitle className="text-lg">Node Clusters</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {(() => {
-                // Group nodes by cluster
-                const clusterGroups = new Map<number, { nodes: NodeData[], color: string }>()
-                nodeData.forEach(node => {
-                  const clusterId = nodeClusters.get(node.recordId)
-                  if (clusterId !== undefined) {
-                    if (!clusterGroups.has(clusterId)) {
-                      clusterGroups.set(clusterId, { nodes: [], color: getNodeColor(node.recordId) })
+                              {(() => {
+                  // Group nodes by cluster
+                  const clusterGroups = new Map<number, { nodes: NodeData[], color: string }>()
+                  finalNodeData.forEach(node => {
+                    const clusterId = nodeClusters.get(node.recordId)
+                    if (clusterId !== undefined) {
+                      if (!clusterGroups.has(clusterId)) {
+                        clusterGroups.set(clusterId, { nodes: [], color: getNodeColor(node.recordId) })
+                      }
+                      clusterGroups.get(clusterId)!.nodes.push(node)
                     }
-                    clusterGroups.get(clusterId)!.nodes.push(node)
-                  }
-                })
+                  })
                 
                 return Array.from(clusterGroups.entries()).map(([clusterId, { nodes, color }]) => (
                   <div key={clusterId} className="flex items-center gap-3">
@@ -1133,7 +1170,7 @@ export default function GraphExplorer() {
       {/* Center Panel - Graph Display */}
       <div className="flex-1 relative flex flex-col">
         {/* Graph area with fixed height */}
-        <div className="relative" style={{ height: '62vh', minHeight: 350 }}>
+        <div key={`graph-container-${selectedDataExample}`} className="relative" style={{ height: '62vh', minHeight: 350 }}>
           <svg
             ref={svgRef}
             width="100%"
@@ -1245,7 +1282,7 @@ export default function GraphExplorer() {
             })}
 
             {/* Render nodes */}
-            {nodeData.map((node) => {
+            {finalNodeData.map((node) => {
               const isHovered = hoveredNode === node
               const isSelected = selectedNode === node
 
@@ -1278,9 +1315,9 @@ export default function GraphExplorer() {
           </svg>
         </div>
         {/* Data Table Below the Graph */}
-        <div className="w-full bg-white border-t border-gray-200 overflow-x-auto mt-4" style={{ fontSize: '12px' }}>
+        <div key={`data-table-${selectedDataExample}`} className="w-full bg-white border-t border-gray-200 overflow-x-auto mt-4" style={{ fontSize: '12px' }}>
           {/* Data Example Selector */}
-          <div className="p-4 border-b border-gray-200 bg-gray-50">
+          <div key={`data-selector-${selectedDataExample}`} className="p-4 border-b border-gray-200 bg-gray-50">
             <div className="flex items-center gap-4">
               <label className="text-sm font-medium text-gray-700">Data Example:</label>
               <select
@@ -1327,24 +1364,24 @@ export default function GraphExplorer() {
                 <th className="px-2 py-1 border">Phone</th>
               </tr>
             </thead>
-            <tbody>
-              {nodeData.map((node) => (
-                <tr
-                  key={node.recordId}
-                  className="hover:bg-gray-50"
-                  onMouseEnter={() => setHoveredNode(node)}
-                  onMouseLeave={() => setHoveredNode(null)}
-                >
-                  <td className="px-2 py-1 border font-mono">{node.recordId}</td>
-                  <td className="px-2 py-1 border font-mono">{node.uuid || "—"}</td>
-                  <td className="px-2 py-1 border">{node.salutation || "—"}</td>
-                  <td className="px-2 py-1 border">{node.firstName || "—"}</td>
-                  <td className="px-2 py-1 border">{node.lastName || "—"}</td>
-                  <td className="px-2 py-1 border break-all">{node.email || "—"}</td>
-                  <td className="px-2 py-1 border">{node.phone || "—"}</td>
-                </tr>
-              ))}
-            </tbody>
+                          <tbody>
+                {finalNodeData.map((node) => (
+                  <tr
+                    key={node.recordId}
+                    className="hover:bg-gray-50"
+                    onMouseEnter={() => setHoveredNode(node)}
+                    onMouseLeave={() => setHoveredNode(null)}
+                  >
+                    <td className="px-2 py-1 border font-mono">{node.recordId}</td>
+                    <td className="px-2 py-1 border font-mono">{node.uuid || "—"}</td>
+                    <td className="px-2 py-1 border">{node.salutation || "—"}</td>
+                    <td className="px-2 py-1 border">{node.firstName || "—"}</td>
+                    <td className="px-2 py-1 border">{node.lastName || "—"}</td>
+                    <td className="px-2 py-1 border break-all">{node.email || "—"}</td>
+                    <td className="px-2 py-1 border">{node.phone || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
           </table>
         </div>
       </div>
