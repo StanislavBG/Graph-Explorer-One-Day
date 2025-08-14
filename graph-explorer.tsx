@@ -2156,11 +2156,11 @@ export default function GraphExplorer() {
                 </CardHeader>
                 <CardContent className="pt-0">
                   <div className="space-y-2 text-xs">
-                    {/* Rule-1: Email-based matching */}
+                    {/* Rule-1: Salutation+First+Last+Email */}
                     <div className="border-l-4 border-blue-500 pl-3">
                       <div className="flex items-center gap-2 mb-1">
                         <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                        <span className="font-semibold text-blue-700">Rule-1: Email-based matching</span>
+                        <span className="font-semibold text-blue-700">Rule-1: Salutation+First+Last+Email</span>
                       </div>
                       <div className="ml-4 space-y-1">
                         <div className="flex items-center gap-2">
@@ -2194,11 +2194,11 @@ export default function GraphExplorer() {
                       </div>
                     </div>
 
-                    {/* Rule-2: Phone-based matching */}
+                    {/* Rule-2: Salutation+First+Last+Phone */}
                     <div className="border-l-4 border-green-500 pl-3">
                       <div className="flex items-center gap-2 mb-1">
                         <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                        <span className="font-semibold text-green-700">Rule-2: Phone-based matching</span>
+                        <span className="font-semibold text-green-700">Rule-2: Salutation+First+Last+Phone</span>
                       </div>
                       <div className="ml-4 space-y-1">
                         <div className="flex items-center gap-2">
@@ -2232,11 +2232,11 @@ export default function GraphExplorer() {
                       </div>
                     </div>
 
-                    {/* Rule-3: Address-based matching */}
+                    {/* Rule-3: Salutation+First+Last+Address */}
                     <div className="border-l-4 border-purple-500 pl-3">
                       <div className="flex items-center gap-2 mb-1">
                         <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-                        <span className="font-semibold text-purple-700">Rule-3: Address-based matching</span>
+                        <span className="font-semibold text-purple-700">Rule-3: Salutation+First+Last+Address</span>
                       </div>
                       <div className="ml-4 space-y-1">
                         <div className="flex items-center gap-2">
@@ -2256,7 +2256,7 @@ export default function GraphExplorer() {
                     <div className="border-l-4 border-orange-500 pl-3">
                       <div className="flex items-center gap-2 mb-1">
                         <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                        <span className="font-semibold text-orange-700">Rule-14: Party+Phone-based matching</span>
+                        <span className="font-semibold text-orange-700">Rule-14: Party+Phone</span>
                       </div>
                       <div className="ml-4 space-y-1">
                         <div className="flex items-center gap-2">
