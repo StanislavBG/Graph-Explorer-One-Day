@@ -104,11 +104,11 @@ const matchRules = [
     name: "Rule-14",
     fields: ["party", "phone"],
     children: [
-      {
-        name: "Rule-15",
-        fields: ["party", "phone"],
-        children: [],
-      },
+                      {
+                  name: "Rule-15",
+                  fields: ["phone"],
+                  children: [],
+                },
     ],
   },
 ]
@@ -2537,10 +2537,10 @@ export default function GraphExplorer() {
                         <span className="font-semibold text-orange-700">Rule-14: Party+Phone</span>
                       </div>
                       <div className="ml-4 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-orange-300"></div>
-                          <span className="text-orange-500">Rule-15: Party + Phone</span>
-                        </div>
+                                                           <div className="flex items-center gap-2">
+                                     <div className="w-1.5 h-1.5 rounded-full bg-orange-300"></div>
+                                     <span className="text-orange-500">Rule-15: Phone only</span>
+                                   </div>
                       </div>
                     </div>
                   </div>
