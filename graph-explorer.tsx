@@ -290,7 +290,7 @@ export default function GraphExplorer() {
 
   // For dynamic sizing
   const svgRef = useRef<SVGSVGElement | null>(null)
-  const [svgSize, setSvgSize] = useState({ width: 800, height: 600 })
+  const [svgSize, setSvgSize] = useState({ width: 1000, height: 800 }) // Better initial dimensions
 
   useEffect(() => {
     setIsClient(true)
@@ -331,8 +331,8 @@ export default function GraphExplorer() {
   }, [selectedDataExample])
 
   // Calculate center and radius dynamically for the graph area only
-  const centerX = svgSize.width / 2
-  const centerY = svgSize.height / 2
+  const centerX = Math.max(svgSize.width / 2, 400) // Ensure minimum center X
+  const centerY = Math.max(svgSize.height / 2, 300) // Ensure minimum center Y
   const radius = Math.min(svgSize.width, svgSize.height) * 0.35 // 35% of smaller dimension for better centering
 
   // Get the currently selected data set
@@ -363,9 +363,9 @@ export default function GraphExplorer() {
     return currentData.map((record: any, index: number) => {
       // Calculate position in a circle layout
       const angle = (index / currentData.length) * 2 * Math.PI
-      const radius = Math.min(svgSize.width, svgSize.height) * 0.3 // 30% of smaller dimension
-      const x = Math.cos(angle) * radius + centerX
-      const y = Math.sin(angle) * radius + centerY
+      const nodeRadius = Math.min(svgSize.width, svgSize.height) * 0.3 // 30% of smaller dimension
+      const x = Math.cos(angle) * nodeRadius + centerX
+      const y = Math.sin(angle) * nodeRadius + centerY
       
       return {
         recordId: record["Record-Id"] || `record-${index}`,
