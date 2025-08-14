@@ -331,9 +331,12 @@ export default function GraphExplorer() {
   }, [selectedDataExample])
 
   // Calculate center and radius dynamically for the graph area only
-  const centerX = Math.max(svgSize.width / 2, 400) // Ensure minimum center X
-  const centerY = Math.max(svgSize.height / 2, 300) // Ensure minimum center Y
-  const radius = Math.min(svgSize.width, svgSize.height) * 0.35 // 35% of smaller dimension for better centering
+  // Use actual container dimensions or fallback to reasonable defaults
+  const containerWidth = svgSize.width || 800
+  const containerHeight = svgSize.height || 600
+  const centerX = containerWidth / 2
+  const centerY = containerHeight / 2
+  const radius = Math.min(containerWidth, containerHeight) * 0.35 // 35% of smaller dimension for better centering
 
   // Get the currently selected data set
   const currentData = selectedDataExample === -1 
@@ -363,7 +366,7 @@ export default function GraphExplorer() {
     return currentData.map((record: any, index: number) => {
       // Calculate position in a circle layout
       const angle = (index / currentData.length) * 2 * Math.PI
-      const nodeRadius = Math.min(svgSize.width, svgSize.height) * 0.3 // 30% of smaller dimension
+      const nodeRadius = Math.min(containerWidth, containerHeight) * 0.3 // 30% of smaller dimension
       const x = Math.cos(angle) * nodeRadius + centerX
       const y = Math.sin(angle) * nodeRadius + centerY
       
@@ -1631,9 +1634,8 @@ export default function GraphExplorer() {
                 {/* Graph Container */}
         <div 
           key={`graph-container-${selectedDataExample}`} 
-          className="relative"
+          className="relative flex-1"
           style={{ 
-            height: graphHeight, 
             minHeight: 400,
             maxHeight: '70vh'
           }}
@@ -1642,7 +1644,7 @@ export default function GraphExplorer() {
             ref={svgRef}
             width="100%"
             height="100%"
-            className="cursor-crosshair"
+            className="cursor-crosshair w-full h-full"
             suppressHydrationWarning
             onClick={(e) => {
               // Only clear selection if the click target is the SVG itself (not a node or edge)
