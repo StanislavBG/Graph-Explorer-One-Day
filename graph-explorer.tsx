@@ -269,11 +269,9 @@ export default function GraphExplorer() {
     email: string
     phone: string
     party: string
-    topLevelMatch: string
-    finalMatch: string
   }>>([
-    { recordId: "id-001", salutation: "Mr.", firstName: "John", lastName: "Smith", email: "john.smith@email.com", phone: "(555) 123-4567", party: "Party-001", topLevelMatch: "", finalMatch: "" },
-    { recordId: "id-002", salutation: "Ms.", firstName: "Sarah", lastName: "Johnson", email: "sarah.j@email.com", phone: "(555) 987-6543", party: "Party-002", topLevelMatch: "", finalMatch: "" }
+    { recordId: "id-001", salutation: "Mr.", firstName: "John", lastName: "Smith", email: "john.smith@email.com", phone: "(555) 123-4567", party: "Party-001" },
+    { recordId: "id-002", salutation: "Ms.", firstName: "Sarah", lastName: "Johnson", email: "sarah.j@email.com", phone: "(555) 987-6543", party: "Party-002" }
   ])
 
   // Editable data state for all examples
@@ -380,8 +378,7 @@ export default function GraphExplorer() {
         email: record["Email"] || "",
         phone: record["Phone"] || "",
         party: record["Party"] || "",
-        topLevelMatch: record["TopLevelMatch"] || "",
-        finalMatch: record["FinalMatch"] || "",
+
         x,
         y,
       }
@@ -1876,8 +1873,6 @@ export default function GraphExplorer() {
                 <th className="px-1 py-0.5 border text-green-700" title="Editable">Email</th>
                 <th className="px-1 py-0.5 border text-green-700" title="Editable">Phone</th>
                 <th className="px-1 py-0.5 border text-green-700" title="Editable">Party</th>
-                <th className="px-1 py-0.5 border text-blue-700" title="Computed">TopLevelMatch</th>
-                <th className="px-1 py-0.5 border text-blue-700" title="Computed">FinalMatch</th>
               </tr>
             </thead>
                                             <tbody>
@@ -2019,12 +2014,6 @@ export default function GraphExplorer() {
                                 title={editableRecord?.party || ""}
                               />
                             )}
-                          </td>
-                          <td className="px-1 py-0.5 border font-mono bg-blue-50 text-blue-700">
-                            {node.topLevelMatch || "—"}
-                          </td>
-                          <td className="px-1 py-0.5 border font-mono bg-blue-50 text-blue-700">
-                            {node.finalMatch || "—"}
                           </td>
                         </tr>
                       )
