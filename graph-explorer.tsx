@@ -1623,6 +1623,9 @@ export default function GraphExplorer() {
               {selectedDataExample !== -1 && (
                 <span className="block mt-1 text-gray-600">💡 <strong>Note:</strong> All data examples are now editable inline. Changes will update the graph in real-time.</span>
               )}
+              {selectedDataExample === 5 && (
+                <span className="block mt-1 text-yellow-600">⚠️ <strong>Data Quality Test:</strong> R2 has intentional email typo (jane.doe@gmai.com) to test Rule-1 strictness</span>
+              )}
             </div>
           </div>
 
