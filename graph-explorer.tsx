@@ -1009,7 +1009,9 @@ export default function GraphExplorer() {
       lastName: lastName,
       email: generateRandomEmail(firstName, lastName),
       phone: reusedFields.phone,
-      party: reusedFields.party
+      party: reusedFields.party,
+      topLevelMatch: "",
+      finalMatch: ""
     }])
   }
 
@@ -1069,6 +1071,9 @@ export default function GraphExplorer() {
       }
     })
     
+    // Add missing fields
+    record.topLevelMatch = ""
+    record.finalMatch = ""
     setDynamicRecords([...dynamicRecords, record])
   }
 
