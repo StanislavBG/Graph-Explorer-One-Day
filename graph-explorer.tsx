@@ -1855,7 +1855,7 @@ export default function GraphExplorer() {
           <table className="min-w-full text-[10px] text-left">
             <thead className="bg-gray-100">
               <tr>
-                {selectedDataExample === -1 && <th className="px-1 py-0.5 border w-6"></th>}
+                <th className="px-1 py-0.5 border w-6" title="Actions"></th>
                 <th className="px-1 py-0.5 border text-gray-600" title="Not editable">Record ID</th>
                 <th className="px-1 py-0.5 border text-gray-600" title="Not editable">UUID</th>
                 <th className="px-1 py-0.5 border text-green-700" title="Editable">Salutation</th>
@@ -1879,8 +1879,8 @@ export default function GraphExplorer() {
                           onMouseEnter={() => setHoveredNode(node)}
                           onMouseLeave={() => setHoveredNode(null)}
                         >
-                          {(isCustomData && dynamicRecords.length > 1) || (!isCustomData && editableData.length > 1) ? (
-                            <td className="px-1 py-0.5 border w-6">
+                          <td className="px-1 py-0.5 border w-6">
+                            {((isCustomData && dynamicRecords.length > 1) || (!isCustomData && editableData.length > 1)) ? (
                               <button
                                 onClick={() => isCustomData ? removeDynamicRecord(index) : removeExampleRecord(index)}
                                 className="w-3 h-3 text-red-500 hover:text-red-700 hover:bg-red-50 rounded text-[8px]"
@@ -1888,8 +1888,8 @@ export default function GraphExplorer() {
                               >
                                 ×
                               </button>
-                            </td>
-                          ) : null}
+                            ) : null}
+                          </td>
                           <td className="px-1 py-0.5 border font-mono bg-gray-100 text-gray-600">{node.recordId}</td>
                           <td className="px-1 py-0.5 border font-mono bg-gray-100 text-gray-600">{node.uuid || "—"}</td>
                           <td className="px-1 py-0.5 border">
