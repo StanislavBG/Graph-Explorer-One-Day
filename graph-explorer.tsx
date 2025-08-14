@@ -253,6 +253,10 @@ export default function GraphExplorer() {
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
   const [showRuleModal, setShowRuleModal] = useState(false)
   const [selectedDataExample, setSelectedDataExample] = useState(0) // Index of selected data example
+  const [graphHeight, setGraphHeight] = useState(400) // Resizable graph height
+  const [leftPanelWidth, setLeftPanelWidth] = useState(320) // Resizable left panel width
+  const [rightPanelWidth, setRightPanelWidth] = useState(320) // Resizable right panel width
+  const [dataTableHeight, setDataTableHeight] = useState(250) // Resizable data table height
   const [isClient, setIsClient] = useState(false) // Prevent hydration mismatch
   
   // Dynamic data creation state
@@ -303,7 +307,7 @@ export default function GraphExplorer() {
     updateSize()
     window.addEventListener("resize", updateSize)
     return () => window.removeEventListener("resize", updateSize)
-  }, [])
+  }, [graphHeight, leftPanelWidth, rightPanelWidth, dataTableHeight]) // Update when resizable areas change
 
   // Initialize editable data when example is selected
   useEffect(() => {
@@ -1292,8 +1296,34 @@ export default function GraphExplorer() {
 
   return (
     <div className="w-full h-screen bg-gray-50 flex">
-      {/* Left Panel - Legend and Controls */}
-      <div className="w-80 bg-white border-r border-gray-200 p-6 overflow-y-auto">
+      {/* Left Panel - Legend and Controls - Resizable */}
+      <div 
+        className="bg-white border-r border-gray-200 p-6 overflow-y-auto relative"
+        style={{ width: leftPanelWidth }}
+      >
+        {/* Resize Handle */}
+        <div 
+          className="absolute right-0 top-0 bottom-0 w-1 bg-gray-300 hover:bg-blue-400 cursor-ew-resize transition-colors"
+          onMouseDown={(e) => {
+            e.preventDefault()
+            const startX = e.clientX
+            const startWidth = leftPanelWidth
+            
+            const handleMouseMove = (moveEvent: MouseEvent) => {
+              const deltaX = moveEvent.clientX - startX
+              const newWidth = Math.max(300, Math.min(600, startWidth + deltaX))
+              setLeftPanelWidth(newWidth)
+            }
+            
+            const handleMouseUp = () => {
+              document.removeEventListener('mousemove', handleMouseMove)
+              document.removeEventListener('mouseup', handleMouseUp)
+            }
+            
+            document.addEventListener('mousemove', handleMouseMove)
+            document.addEventListener('mouseup', handleMouseUp)
+          }}
+        />
         <div className="space-y-6">
           {/* Header */}
           <div>
@@ -1569,10 +1599,42 @@ export default function GraphExplorer() {
         </div>
       </div>
 
-      {/* Center Panel - Graph Display */}
+      {/* Center Panel - Graph Display - Resizable */}
       <div className="flex-1 relative flex flex-col">
-        {/* Graph area with fixed height */}
-        <div key={`graph-container-${selectedDataExample}`} className="relative" style={{ height: '62vh', minHeight: 350 }}>
+        {/* Resizable Graph Container */}
+        <div 
+          key={`graph-container-${selectedDataExample}`} 
+          className="relative border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors cursor-ns-resize"
+          style={{ 
+            height: graphHeight, 
+            minHeight: 350,
+            maxHeight: '80vh'
+          }}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              e.preventDefault()
+              const startY = e.clientY
+              const startHeight = graphHeight
+              
+              const handleMouseMove = (moveEvent: MouseEvent) => {
+                const deltaY = moveEvent.clientY - startY
+                const newHeight = Math.max(350, Math.min(window.innerHeight * 0.8, startHeight + deltaY))
+                setGraphHeight(newHeight)
+              }
+              
+              const handleMouseUp = () => {
+                document.removeEventListener('mousemove', handleMouseMove)
+                document.removeEventListener('mouseup', handleMouseUp)
+              }
+              
+              document.addEventListener('mousemove', handleMouseMove)
+              document.addEventListener('mouseup', handleMouseUp)
+            }
+          }}
+        >
+          <div className="absolute top-2 left-2 text-xs text-gray-500 bg-white px-2 py-1 rounded">
+            Drag to resize graph area
+          </div>
           <svg
             ref={svgRef}
             width="100%"
@@ -1716,8 +1778,41 @@ export default function GraphExplorer() {
             })}
           </svg>
         </div>
-        {/* Data Table Below the Graph */}
-        <div key={`data-table-${selectedDataExample}`} className="w-full bg-white border-t border-gray-200 overflow-x-auto mt-4" style={{ fontSize: '12px' }}>
+        {/* Resizable Data Table Area */}
+        <div 
+          key={`data-table-${selectedDataExample}`} 
+          className="w-full bg-white border-t border-gray-200 overflow-x-auto mt-4 relative"
+          style={{ 
+            fontSize: '12px',
+            height: dataTableHeight,
+            minHeight: 200,
+            maxHeight: '40vh'
+          }}
+        >
+          {/* Resize Handle for Data Table */}
+          <div 
+            className="absolute top-0 left-0 right-0 h-1 bg-gray-300 hover:bg-blue-400 cursor-ns-resize transition-colors"
+            onMouseDown={(e) => {
+              e.preventDefault()
+              const startY = e.clientY
+              const startHeight = dataTableHeight
+              
+              const handleMouseMove = (moveEvent: MouseEvent) => {
+                const deltaY = startY - moveEvent.clientY
+                const newHeight = Math.max(200, Math.min(window.innerHeight * 0.4, startHeight + deltaY))
+                setDataTableHeight(newHeight)
+              }
+              
+              const handleMouseUp = () => {
+                document.removeEventListener('mousemove', handleMouseMove)
+                document.removeEventListener('mouseup', handleMouseUp)
+              }
+              
+              document.addEventListener('mousemove', handleMouseMove)
+              document.addEventListener('mouseup', handleMouseUp)
+            }}
+          />
+          <div className="pt-2"> {/* Add padding to avoid overlap with resize handle */}
           {/* Compact Data Example Selector */}
           <div key={`data-selector-${selectedDataExample}`} className="p-2 border-b border-gray-200 bg-gray-50">
             <div className="flex items-center gap-3">
@@ -1802,18 +1897,18 @@ export default function GraphExplorer() {
             </div>
           </div>
           
-          <table className="min-w-full text-xs text-left">
+          <table className="min-w-full text-[10px] text-left">
             <thead className="bg-gray-100">
               <tr>
-                {selectedDataExample === -1 && <th className="px-1 py-1 border w-8"></th>}
-                <th className="px-2 py-1 border text-gray-600" title="Not editable">Record ID</th>
-                <th className="px-2 py-1 border text-gray-600" title="Not editable">UUID</th>
-                <th className="px-2 py-1 border text-green-700" title="Editable">Salutation</th>
-                <th className="px-2 py-1 border text-green-700" title="Editable">First Name</th>
-                <th className="px-2 py-1 border text-green-700" title="Editable">Last Name</th>
-                <th className="px-2 py-1 border text-green-700" title="Editable">Email</th>
-                <th className="px-2 py-1 border text-green-700" title="Editable">Phone</th>
-                <th className="px-2 py-1 border text-green-700" title="Editable">Party</th>
+                {selectedDataExample === -1 && <th className="px-1 py-0.5 border w-6"></th>}
+                <th className="px-1 py-0.5 border text-gray-600" title="Not editable">Record ID</th>
+                <th className="px-1 py-0.5 border text-gray-600" title="Not editable">UUID</th>
+                <th className="px-1 py-0.5 border text-green-700" title="Editable">Salutation</th>
+                <th className="px-1 py-0.5 border text-green-700" title="Editable">First Name</th>
+                <th className="px-1 py-0.5 border text-green-700" title="Editable">Last Name</th>
+                <th className="px-1 py-0.5 border text-green-700" title="Editable">Email</th>
+                <th className="px-1 py-0.5 border text-green-700" title="Editable">Phone</th>
+                <th className="px-1 py-0.5 border text-green-700" title="Editable">Party</th>
               </tr>
             </thead>
                                             <tbody>
@@ -1830,117 +1925,129 @@ export default function GraphExplorer() {
                           onMouseLeave={() => setHoveredNode(null)}
                         >
                           {(isCustomData && dynamicRecords.length > 1) || (!isCustomData && editableData.length > 1) ? (
-                            <td className="px-1 py-1 border w-8">
+                            <td className="px-1 py-0.5 border w-6">
                               <button
                                 onClick={() => isCustomData ? removeDynamicRecord(index) : removeExampleRecord(index)}
-                                className="w-4 h-4 text-red-500 hover:text-red-700 hover:bg-red-50 rounded text-xs"
+                                className="w-3 h-3 text-red-500 hover:text-red-700 hover:bg-red-50 rounded text-[8px]"
                                 title="Remove record"
                               >
                                 ×
                               </button>
                             </td>
                           ) : null}
-                          <td className="px-2 py-1 border font-mono bg-gray-100 text-gray-600">{node.recordId}</td>
-                          <td className="px-2 py-1 border font-mono bg-gray-100 text-gray-600">{node.uuid || "—"}</td>
-                          <td className="px-2 py-1 border">
+                          <td className="px-1 py-0.5 border font-mono bg-gray-100 text-gray-600">{node.recordId}</td>
+                          <td className="px-1 py-0.5 border font-mono bg-gray-100 text-gray-600">{node.uuid || "—"}</td>
+                          <td className="px-1 py-0.5 border">
                             {isCustomData ? (
                               <input
                                 type="text"
                                 value={dynamicRecord?.salutation || ""}
                                 onChange={(e) => updateDynamicRecord(index, 'salutation', e.target.value)}
-                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                className="w-full px-0.5 py-0 text-[10px] border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded truncate"
+                                title={dynamicRecord?.salutation || ""}
                               />
                             ) : (
                               <input
                                 type="text"
                                 value={editableRecord?.salutation || ""}
                                 onChange={(e) => updateEditableData(index, 'salutation', e.target.value)}
-                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                className="w-full px-0.5 py-0 text-[10px] border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded truncate"
+                                title={editableRecord?.salutation || ""}
                               />
                             )}
                           </td>
-                          <td className="px-2 py-1 border">
+                          <td className="px-1 py-0.5 border">
                             {isCustomData ? (
                               <input
                                 type="text"
                                 value={dynamicRecord?.firstName || ""}
                                 onChange={(e) => updateDynamicRecord(index, 'firstName', e.target.value)}
-                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                className="w-full px-0.5 py-0 text-[10px] border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded truncate"
+                                title={dynamicRecord?.firstName || ""}
                               />
                             ) : (
                               <input
                                 type="text"
                                 value={editableRecord?.firstName || ""}
                                 onChange={(e) => updateEditableData(index, 'firstName', e.target.value)}
-                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                className="w-full px-0.5 py-0 text-[10px] border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded truncate"
+                                title={editableRecord?.firstName || ""}
                               />
                             )}
                           </td>
-                          <td className="px-2 py-1 border">
+                          <td className="px-1 py-0.5 border">
                             {isCustomData ? (
                               <input
                                 type="text"
                                 value={dynamicRecord?.lastName || ""}
                                 onChange={(e) => updateDynamicRecord(index, 'lastName', e.target.value)}
-                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                className="w-full px-0.5 py-0 text-[10px] border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded truncate"
+                                title={dynamicRecord?.lastName || ""}
                               />
                             ) : (
                               <input
                                 type="text"
                                 value={editableRecord?.lastName || ""}
                                 onChange={(e) => updateEditableData(index, 'lastName', e.target.value)}
-                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                className="w-full px-0.5 py-0 text-[10px] border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded truncate"
+                                title={editableRecord?.lastName || ""}
                               />
                             )}
                           </td>
-                          <td className="px-2 py-1 border break-all">
+                          <td className="px-1 py-0.5 border">
                             {isCustomData ? (
                               <input
                                 type="text"
                                 value={dynamicRecord?.email || ""}
                                 onChange={(e) => updateDynamicRecord(index, 'email', e.target.value)}
-                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                className="w-full px-0.5 py-0 text-[10px] border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded truncate"
+                                title={dynamicRecord?.email || ""}
                               />
                             ) : (
                               <input
                                 type="text"
                                 value={editableRecord?.email || ""}
                                 onChange={(e) => updateEditableData(index, 'email', e.target.value)}
-                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                className="w-full px-0.5 py-0 text-[10px] border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded truncate"
+                                title={editableRecord?.email || ""}
                               />
                             )}
                           </td>
-                          <td className="px-2 py-1 border">
+                          <td className="px-1 py-0.5 border">
                             {isCustomData ? (
                               <input
                                 type="text"
                                 value={dynamicRecord?.phone || ""}
                                 onChange={(e) => updateDynamicRecord(index, 'phone', e.target.value)}
-                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                className="w-full px-0.5 py-0 text-[10px] border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded truncate"
+                                title={dynamicRecord?.phone || ""}
                               />
                             ) : (
                               <input
                                 type="text"
                                 value={editableRecord?.phone || ""}
                                 onChange={(e) => updateEditableData(index, 'phone', e.target.value)}
-                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                className="w-full px-0.5 py-0 text-[10px] border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded truncate"
+                                title={editableRecord?.phone || ""}
                               />
                             )}
                           </td>
-                          <td className="px-2 py-1 border">
+                          <td className="px-1 py-0.5 border">
                             {isCustomData ? (
                               <input
                                 type="text"
                                 value={dynamicRecord?.party || ""}
                                 onChange={(e) => updateDynamicRecord(index, 'party', e.target.value)}
-                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                className="w-full px-0.5 py-0 text-[10px] border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                title={dynamicRecord?.party || ""}
                               />
                             ) : (
                               <input
                                 type="text"
                                 value={editableRecord?.party || ""}
                                 onChange={(e) => updateEditableData(index, 'party', e.target.value)}
-                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                className="w-full px-0.5 py-0 text-[10px] border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded truncate"
+                                title={editableRecord?.party || ""}
                               />
                             )}
                           </td>
@@ -1949,11 +2056,38 @@ export default function GraphExplorer() {
                     })}
                   </tbody>
           </table>
-        </div>
+          </div> {/* Close the pt-2 div */}
+        </div> {/* Close the data table container */}
       </div>
 
-      {/* Right Panel - Match Details */}
-      <div className="w-80 bg-white border-l border-gray-200 p-6 overflow-y-auto">
+      {/* Right Panel - Match Details - Resizable */}
+      <div 
+        className="bg-white border-l border-gray-200 p-6 overflow-y-auto relative"
+        style={{ width: rightPanelWidth }}
+      >
+        {/* Resize Handle */}
+        <div 
+          className="absolute left-0 top-0 bottom-0 w-1 bg-gray-300 hover:bg-blue-400 cursor-ew-resize transition-colors"
+          onMouseDown={(e) => {
+            e.preventDefault()
+            const startX = e.clientX
+            const startWidth = rightPanelWidth
+            
+            const handleMouseMove = (moveEvent: MouseEvent) => {
+              const deltaX = startX - moveEvent.clientX
+              const newWidth = Math.max(300, Math.min(600, startWidth + deltaX))
+              setRightPanelWidth(newWidth)
+            }
+            
+            const handleMouseUp = () => {
+              document.removeEventListener('mousemove', handleMouseMove)
+              document.removeEventListener('mouseup', handleMouseUp)
+            }
+            
+            document.addEventListener('mousemove', handleMouseMove)
+            document.addEventListener('mouseup', handleMouseUp)
+          }}
+        />
         <div className="space-y-6">
           {/* Header */}
           <div>
