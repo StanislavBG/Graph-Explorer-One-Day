@@ -254,7 +254,7 @@ export default function GraphExplorer() {
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
   const [showRuleModal, setShowRuleModal] = useState(false)
   const [selectedDataExample, setSelectedDataExample] = useState(0) // Index of selected data example
-      const [graphHeight, setGraphHeight] = useState(700) // Resizable graph height - larger portion of vertical space
+      const [graphHeight, setGraphHeight] = useState(500) // Resizable graph height - optimized for single screen view
     const [leftPanelWidth, setLeftPanelWidth] = useState(320) // Resizable left panel width
     const [rightPanelWidth, setRightPanelWidth] = useState(320) // Resizable right panel width
 
@@ -1322,7 +1322,7 @@ export default function GraphExplorer() {
   }
 
   return (
-    <div className="w-full min-h-screen bg-gray-50 flex">
+    <div className="w-full h-screen bg-gray-50 flex">
       {/* Left Panel - Legend and Controls - Resizable */}
       <div 
         className="bg-white border-r border-gray-200 p-3 overflow-y-auto relative"
@@ -1634,8 +1634,8 @@ export default function GraphExplorer() {
           className="relative"
           style={{ 
             height: graphHeight, 
-            minHeight: 400,
-            maxHeight: '75vh'
+            minHeight: 300,
+            maxHeight: '60vh'
           }}
         >
           <svg
@@ -1785,13 +1785,13 @@ export default function GraphExplorer() {
                 {/* Data Table Area */}
         <div 
           key={`data-table-${selectedDataExample}`} 
-          className="w-full bg-white border-t border-gray-200 overflow-x-auto mt-4"
+          className="w-full bg-white border-t border-gray-200 overflow-x-auto mt-2"
           style={{ 
             fontSize: '12px'
           }}
         >
           {/* Compact Data Example Selector */}
-          <div key={`data-selector-${selectedDataExample}`} className="p-2 border-b border-gray-200 bg-gray-50">
+          <div key={`data-selector-${selectedDataExample}`} className="p-1.5 border-b border-gray-200 bg-gray-50">
             <div className="flex items-center gap-3">
               <label className="text-xs font-medium text-gray-700">Example:</label>
               <select
@@ -1833,7 +1833,7 @@ export default function GraphExplorer() {
           </div>
 
           {/* Compact Add Record Buttons */}
-          <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+          <div className="mt-1 p-1.5 bg-blue-50 border border-blue-200 rounded text-xs">
             <div className="flex items-center justify-between">
               <span className="text-blue-800">
                 💡 <strong>Add rows:</strong> 
