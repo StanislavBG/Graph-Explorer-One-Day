@@ -2427,7 +2427,7 @@ export default function GraphExplorer() {
                           <div className="ml-4">
                             <div className="flex items-center gap-2">
                               <div className="w-1 h-1 rounded-full bg-blue-200"></div>
-                              <span className="text-blue-400">Rule-7: Email only</span>
+                              <span className="text-blue-400">Rule-7: Email</span>
                             </div>
                           </div>
                         </div>
@@ -2439,7 +2439,7 @@ export default function GraphExplorer() {
                           <div className="ml-4">
                             <div className="flex items-center gap-2">
                               <div className="w-1 h-1 rounded-full bg-blue-200"></div>
-                              <span className="text-blue-400">Rule-7: Email only</span>
+                              <span className="text-blue-400">Rule-7: Email</span>
                             </div>
                           </div>
                         </div>
@@ -2465,7 +2465,7 @@ export default function GraphExplorer() {
                           <div className="ml-4">
                             <div className="flex items-center gap-2">
                               <div className="w-1 h-1 rounded-full bg-green-200"></div>
-                              <span className="text-green-400">Rule-11: Phone only</span>
+                              <span className="text-green-400">Rule-11: Phone</span>
                             </div>
                           </div>
                         </div>
@@ -2477,7 +2477,7 @@ export default function GraphExplorer() {
                           <div className="ml-4">
                             <div className="flex items-center gap-2">
                               <div className="w-1 h-1 rounded-full bg-green-200"></div>
-                              <span className="text-green-400">Rule-11: Phone only</span>
+                              <span className="text-green-400">Rule-11: Phone</span>
                             </div>
                           </div>
                         </div>
@@ -2513,7 +2513,7 @@ export default function GraphExplorer() {
                       <div className="ml-4 space-y-1">
                         <div className="flex items-center gap-2">
                           <div className="w-1.5 h-1.5 rounded-full bg-orange-300"></div>
-                          <span className="text-orange-500">Rule-15: Phone only</span>
+                          <span className="text-orange-500">Rule-15: Phone</span>
                         </div>
                       </div>
                     </div>
