@@ -253,7 +253,7 @@ export default function GraphExplorer() {
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
   const [showRuleModal, setShowRuleModal] = useState(false)
   const [selectedDataExample, setSelectedDataExample] = useState(0) // Index of selected data example
-      const [graphHeight, setGraphHeight] = useState(500) // Resizable graph height - main focus area
+      const [graphHeight, setGraphHeight] = useState(700) // Resizable graph height - larger portion of vertical space
     const [leftPanelWidth, setLeftPanelWidth] = useState(320) // Resizable left panel width
     const [rightPanelWidth, setRightPanelWidth] = useState(320) // Resizable right panel width
 
@@ -1610,8 +1610,8 @@ export default function GraphExplorer() {
           className="relative"
           style={{ 
             height: graphHeight, 
-            minHeight: 300,
-            maxHeight: '60vh'
+            minHeight: 400,
+            maxHeight: '75vh'
           }}
         >
           <svg
