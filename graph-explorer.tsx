@@ -253,10 +253,10 @@ export default function GraphExplorer() {
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
   const [showRuleModal, setShowRuleModal] = useState(false)
   const [selectedDataExample, setSelectedDataExample] = useState(0) // Index of selected data example
-  const [graphHeight, setGraphHeight] = useState(400) // Resizable graph height
+  const [graphHeight, setGraphHeight] = useState(350) // Resizable graph height
   const [leftPanelWidth, setLeftPanelWidth] = useState(320) // Resizable left panel width
   const [rightPanelWidth, setRightPanelWidth] = useState(320) // Resizable right panel width
-  const [dataTableHeight, setDataTableHeight] = useState(250) // Resizable data table height
+  const [dataTableHeight, setDataTableHeight] = useState(200) // Resizable data table height
   const [isClient, setIsClient] = useState(false) // Prevent hydration mismatch
   
   // Dynamic data creation state
@@ -1298,7 +1298,7 @@ export default function GraphExplorer() {
     <div className="w-full h-screen bg-gray-50 flex">
       {/* Left Panel - Legend and Controls - Resizable */}
       <div 
-        className="bg-white border-r border-gray-200 p-6 overflow-y-auto relative"
+        className="bg-white border-r border-gray-200 p-3 overflow-y-auto relative"
         style={{ width: leftPanelWidth }}
       >
         {/* Resize Handle */}
@@ -1324,19 +1324,19 @@ export default function GraphExplorer() {
             document.addEventListener('mouseup', handleMouseUp)
           }}
         />
-        <div className="space-y-6">
+        <div className="space-y-3">
           {/* Header */}
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">Graph Explorer</h1>
-            <p className="text-gray-600 mt-1">Data Relationship Visualization & Clustering</p>
+            <h1 className="text-xl font-bold text-gray-800">Graph Explorer</h1>
+            <p className="text-gray-600 mt-0.5 text-sm">Data Relationship Visualization & Clustering</p>
           </div>
 
           {/* Unified Edge Legend */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Relationship Types</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Relationship Types</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-2">
               <div className="flex items-center gap-3">
                 <div className="w-6 h-0.5 bg-green-500"></div>
                 <div>
@@ -1372,10 +1372,10 @@ export default function GraphExplorer() {
 
           {/* Clustering Algorithm Info */}
           <Card className="border-blue-200 bg-blue-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg text-blue-700">🔗 Advanced Clustering</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base text-blue-700">🔗 Advanced Clustering</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-2">
               <div className="text-sm text-blue-800">
                 <p className="mb-2">
                   <strong>Constraint-Respecting Clustering:</strong> This algorithm prevents nodes with 
@@ -1420,10 +1420,10 @@ export default function GraphExplorer() {
 
           {/* Node Clusters */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Node Clusters</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Node Clusters</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-2">
                               {(() => {
                   // Group nodes by cluster
                   const clusterGroups = new Map<number, { nodes: NodeData[], color: string }>()
@@ -1457,10 +1457,10 @@ export default function GraphExplorer() {
           {/* Constraint Violations */}
           {detectConstraintViolations.length > 0 && (
             <Card className="border-red-200 bg-red-50">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg text-red-700">⚠️ Constraint Violations</CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base text-red-700">⚠️ Constraint Violations</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-2">
                 <div className="text-sm text-red-600 mb-3">
                   The following nodes have negative relationships but are in the same cluster. 
                   This indicates the clustering algorithm needs adjustment.
@@ -1483,10 +1483,10 @@ export default function GraphExplorer() {
           {/* Clustering Quality Metrics */}
           {clusteringQualityMetrics && (
             <Card className="border-green-200 bg-green-50">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg text-green-700">📊 Clustering Quality</CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base text-green-700">📊 Clustering Quality</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-2">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <div className="font-medium text-green-800">Nodes & Clusters</div>
@@ -1535,10 +1535,10 @@ export default function GraphExplorer() {
 
           {/* Statistics */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Statistics</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Statistics</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-1">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Total Nodes:</span>
                 <span className="font-medium">{nodeData.length}</span>
@@ -1568,11 +1568,11 @@ export default function GraphExplorer() {
 
           {/* Field Information */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Comparison Fields</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Comparison Fields</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2 text-sm">
+              <div className="space-y-1 text-sm">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
                   <span>Salutation</span>
@@ -1607,8 +1607,8 @@ export default function GraphExplorer() {
           className="relative border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors cursor-ns-resize"
           style={{ 
             height: graphHeight, 
-            minHeight: 350,
-            maxHeight: '80vh'
+            minHeight: 300,
+            maxHeight: '75vh'
           }}
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) {
@@ -1616,11 +1616,11 @@ export default function GraphExplorer() {
               const startY = e.clientY
               const startHeight = graphHeight
               
-              const handleMouseMove = (moveEvent: MouseEvent) => {
-                const deltaY = moveEvent.clientY - startY
-                const newHeight = Math.max(350, Math.min(window.innerHeight * 0.8, startHeight + deltaY))
-                setGraphHeight(newHeight)
-              }
+                             const handleMouseMove = (moveEvent: MouseEvent) => {
+                 const deltaY = moveEvent.clientY - startY
+                 const newHeight = Math.max(300, Math.min(window.innerHeight * 0.75, startHeight + deltaY))
+                 setGraphHeight(newHeight)
+               }
               
               const handleMouseUp = () => {
                 document.removeEventListener('mousemove', handleMouseMove)
@@ -1785,8 +1785,8 @@ export default function GraphExplorer() {
           style={{ 
             fontSize: '12px',
             height: dataTableHeight,
-            minHeight: 200,
-            maxHeight: '40vh'
+            minHeight: 150,
+            maxHeight: '35vh'
           }}
         >
           {/* Resize Handle for Data Table */}
@@ -1797,11 +1797,11 @@ export default function GraphExplorer() {
               const startY = e.clientY
               const startHeight = dataTableHeight
               
-              const handleMouseMove = (moveEvent: MouseEvent) => {
-                const deltaY = startY - moveEvent.clientY
-                const newHeight = Math.max(200, Math.min(window.innerHeight * 0.4, startHeight + deltaY))
-                setDataTableHeight(newHeight)
-              }
+                             const handleMouseMove = (moveEvent: MouseEvent) => {
+                 const deltaY = startY - moveEvent.clientY
+                 const newHeight = Math.max(150, Math.min(window.innerHeight * 0.35, startHeight + deltaY))
+                 setDataTableHeight(newHeight)
+               }
               
               const handleMouseUp = () => {
                 document.removeEventListener('mousemove', handleMouseMove)
@@ -2062,7 +2062,7 @@ export default function GraphExplorer() {
 
       {/* Right Panel - Match Details - Resizable */}
       <div 
-        className="bg-white border-l border-gray-200 p-6 overflow-y-auto relative"
+        className="bg-white border-l border-gray-200 p-3 overflow-y-auto relative"
         style={{ width: rightPanelWidth }}
       >
         {/* Resize Handle */}
@@ -2088,11 +2088,11 @@ export default function GraphExplorer() {
             document.addEventListener('mouseup', handleMouseUp)
           }}
         />
-        <div className="space-y-6">
+        <div className="space-y-3">
           {/* Header */}
           <div>
-            <h2 className="text-xl font-bold text-gray-800">Match Details</h2>
-            <p className="text-gray-500 mt-1 text-xs">
+            <h2 className="text-lg font-bold text-gray-800">Match Details</h2>
+            <p className="text-gray-500 mt-0.5 text-xs">
               {selectedNode || selectedEdge || hoveredNode || hoveredEdge
                 ? "Click or hover to explore"
                 : "Click or hover on nodes/edges"}
