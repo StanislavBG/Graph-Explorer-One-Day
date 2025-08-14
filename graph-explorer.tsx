@@ -256,7 +256,7 @@ export default function GraphExplorer() {
       const [graphHeight, setGraphHeight] = useState(500) // Resizable graph height - main focus area
     const [leftPanelWidth, setLeftPanelWidth] = useState(320) // Resizable left panel width
     const [rightPanelWidth, setRightPanelWidth] = useState(320) // Resizable right panel width
-    const [dataTableHeight, setDataTableHeight] = useState(300) // Resizable data table height - better visibility
+    const [dataTableHeight, setDataTableHeight] = useState(200) // Resizable data table height - reduced default
   const [isClient, setIsClient] = useState(false) // Prevent hydration mismatch
   
   // Dynamic data creation state
@@ -331,7 +331,7 @@ export default function GraphExplorer() {
   // Calculate center and radius dynamically for the graph area only
   const centerX = svgSize.width / 2
   const centerY = svgSize.height / 2
-  const radius = Math.min(svgSize.width, svgSize.height) * 0.425 // ~85% diameter of the SVG area
+  const radius = Math.min(svgSize.width, svgSize.height) * 0.35 // 35% of smaller dimension for better centering
 
   // Get the currently selected data set
   const currentData = selectedDataExample === -1 
@@ -1761,8 +1761,8 @@ export default function GraphExplorer() {
           style={{ 
             fontSize: '12px',
             height: dataTableHeight,
-            minHeight: 200,
-            maxHeight: '40vh'
+            minHeight: 150,
+            maxHeight: '35vh'
           }}
         >
           {/* Compact Data Example Selector */}
