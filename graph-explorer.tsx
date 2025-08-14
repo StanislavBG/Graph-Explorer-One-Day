@@ -982,6 +982,13 @@ export default function GraphExplorer() {
                     handles incomplete data and creates edges based on available fields.
                   </div>
                 )}
+                {selectedDataExample === 3 && (
+                  <div className="mt-3 p-2 bg-purple-100 border border-purple-300 rounded text-xs text-purple-800">
+                    <strong>Note:</strong> Data Example 4 tests extreme missing data scenarios - id-001 (Jr) and 
+                    id-002 (Sr) have complete data, id-003 has no salutation, and id-004 has no salutation 
+                    AND no email. This tests the algorithm's ability to handle varying levels of data completeness.
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
