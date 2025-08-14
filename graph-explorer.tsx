@@ -254,7 +254,7 @@ export default function GraphExplorer() {
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
   const [showRuleModal, setShowRuleModal] = useState(false)
   const [selectedDataExample, setSelectedDataExample] = useState(0) // Index of selected data example
-      const [graphHeight, setGraphHeight] = useState(500) // Resizable graph height - optimized for single screen view
+      const [graphHeight, setGraphHeight] = useState(600) // Resizable graph height - increased to prevent clipping
     const [leftPanelWidth, setLeftPanelWidth] = useState(320) // Resizable left panel width
     const [rightPanelWidth, setRightPanelWidth] = useState(320) // Resizable right panel width
 
@@ -1634,8 +1634,8 @@ export default function GraphExplorer() {
           className="relative"
           style={{ 
             height: graphHeight, 
-            minHeight: 300,
-            maxHeight: '60vh'
+            minHeight: 400,
+            maxHeight: '70vh'
           }}
         >
           <svg
@@ -1785,7 +1785,7 @@ export default function GraphExplorer() {
                 {/* Data Table Area */}
         <div 
           key={`data-table-${selectedDataExample}`} 
-          className="w-full bg-white border-t border-gray-200 overflow-x-auto mt-2"
+          className="w-full bg-white border-t border-gray-200 overflow-x-auto mt-4"
           style={{ 
             fontSize: '12px'
           }}
