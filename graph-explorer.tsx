@@ -357,9 +357,9 @@ export default function GraphExplorer() {
     return currentData.map((record: any, index: number) => {
       // Calculate position in a circle layout
       const angle = (index / currentData.length) * 2 * Math.PI
-      const radius = 200
-      const x = Math.cos(angle) * radius + 400
-      const y = Math.sin(angle) * radius + 300
+      const radius = Math.min(svgSize.width, svgSize.height) * 0.3 // 30% of smaller dimension
+      const x = Math.cos(angle) * radius + centerX
+      const y = Math.sin(angle) * radius + centerY
       
       return {
         recordId: record["Record-Id"] || `record-${index}`,
@@ -1718,16 +1718,16 @@ export default function GraphExplorer() {
         </div>
         {/* Data Table Below the Graph */}
         <div key={`data-table-${selectedDataExample}`} className="w-full bg-white border-t border-gray-200 overflow-x-auto mt-4" style={{ fontSize: '12px' }}>
-          {/* Data Example Selector */}
-          <div key={`data-selector-${selectedDataExample}`} className="p-4 border-b border-gray-200 bg-gray-50">
-            <div className="flex items-center gap-4">
-              <label className="text-sm font-medium text-gray-700">Data Example:</label>
+          {/* Compact Data Example Selector */}
+          <div key={`data-selector-${selectedDataExample}`} className="p-2 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center gap-3">
+              <label className="text-xs font-medium text-gray-700">Example:</label>
               <select
                 value={selectedDataExample}
                 onChange={(e) => setSelectedDataExample(Number(e.target.value))}
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value={-1} className="font-semibold text-blue-600">🆕 NEW - Create Custom Data</option>
+                <option value={-1} className="font-semibold text-blue-600">🆕 NEW - Custom Data</option>
                 {rawData.map((example, index) => (
                   <option key={index} value={index}>
                     {example.name}
@@ -1735,7 +1735,7 @@ export default function GraphExplorer() {
                 ))}
               </select>
               <div className="text-xs text-gray-500">
-                {currentData.length} records loaded
+                {currentData.length} records
               </div>
               <button
                 onClick={() => {
@@ -1744,63 +1744,59 @@ export default function GraphExplorer() {
                   setHoveredNode(null)
                   setHoveredEdge(null)
                 }}
-                className="px-3 py-2 text-xs bg-gray-200 hover:bg-gray-300 rounded-md transition-colors"
+                className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded transition-colors"
               >
-                Reset View
+                Reset
               </button>
             </div>
-            <div className="mt-2 text-xs text-gray-600">
-              <strong>Current Example:</strong> {selectedDataExample === -1 ? "NEW - Custom Data" : rawData[selectedDataExample]?.name} - 
-              Switch between examples to see how the clustering algorithm performs on different data sets.
+            <div className="mt-1 text-xs text-gray-600">
+              <strong>Current:</strong> {selectedDataExample === -1 ? "NEW - Custom Data" : rawData[selectedDataExample]?.name}
               {selectedDataExample !== -1 && (
-                <span className="block mt-1 text-gray-600">💡 <strong>Note:</strong> All data examples are now editable inline. Changes will update the graph in real-time.</span>
+                <span className="ml-2">💡 Editable inline</span>
               )}
               {selectedDataExample === 5 && (
-                <span className="block mt-1 text-yellow-600">⚠️ <strong>Data Quality Test:</strong> R2 has intentional email typo (jane.doe@gmai.com) to test Rule-1 strictness</span>
+                <span className="ml-2 text-yellow-600">⚠️ R2 has email typo for testing</span>
               )}
             </div>
           </div>
 
-          {/* Add Record Buttons for All Data Types */}
-          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          {/* Compact Add Record Buttons */}
+          <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-blue-800">
-                💡 <strong>Tip:</strong> All fields are editable except Record-Id and UUID (shaded gray). 
-                {selectedDataExample === -1 
-                  ? " Use the buttons to add different types of rows." 
-                  : " Add rows to expand this example for testing."
-                }
+              <span className="text-blue-800">
+                💡 <strong>Add rows:</strong> 
+                {selectedDataExample === -1 ? " Custom data" : " Expand example"}
               </span>
-              <div className="flex gap-2">
+              <div className="flex gap-1">
                 <button
                   onClick={selectedDataExample === -1 ? addFullRecord : addFullRecordToExample}
-                  className="px-3 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded transition-colors"
+                  className="px-2 py-0.5 text-xs bg-green-500 hover:bg-green-600 text-white rounded transition-colors"
                   title={selectedDataExample === -1 
                     ? "Add a record with all fields filled with random realistic data"
                     : "Add a record with all fields filled to this example"
                   }
                 >
-                  + Add Full Row
+                  +Full
                 </button>
                 <button
                   onClick={selectedDataExample === -1 ? addPartialRecord : addPartialRecordToExample}
-                  className="px-3 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
+                  className="px-2 py-0.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
                   title={selectedDataExample === -1 
                     ? "Add a record with some fields randomly filled, others empty"
                     : "Add a record with some fields randomly filled to this example"
                   }
                 >
-                  + Add Partial Row
+                  +Partial
                 </button>
                 <button
                   onClick={selectedDataExample === -1 ? addEmptyRecord : addEmptyRecordToExample}
-                  className="px-3 py-1 text-xs bg-gray-500 hover:bg-gray-600 text-white rounded transition-colors"
+                  className="px-2 py-0.5 text-xs bg-gray-500 hover:bg-gray-600 text-white rounded transition-colors"
                   title={selectedDataExample === -1 
                     ? "Add a completely empty record"
                     : "Add a completely empty record to this example"
                   }
                 >
-                  + Add Empty Row
+                  +Empty
                 </button>
               </div>
             </div>
