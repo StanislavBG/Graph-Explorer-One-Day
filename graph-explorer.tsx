@@ -253,10 +253,10 @@ export default function GraphExplorer() {
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
   const [showRuleModal, setShowRuleModal] = useState(false)
   const [selectedDataExample, setSelectedDataExample] = useState(0) // Index of selected data example
-  const [graphHeight, setGraphHeight] = useState(350) // Resizable graph height
-  const [leftPanelWidth, setLeftPanelWidth] = useState(320) // Resizable left panel width
-  const [rightPanelWidth, setRightPanelWidth] = useState(320) // Resizable right panel width
-  const [dataTableHeight, setDataTableHeight] = useState(200) // Resizable data table height
+      const [graphHeight, setGraphHeight] = useState(600) // Resizable graph height - main focus area
+    const [leftPanelWidth, setLeftPanelWidth] = useState(320) // Resizable left panel width
+    const [rightPanelWidth, setRightPanelWidth] = useState(320) // Resizable right panel width
+    const [dataTableHeight, setDataTableHeight] = useState(150) // Resizable data table height - about 1/3 of graph
   const [isClient, setIsClient] = useState(false) // Prevent hydration mismatch
   
   // Dynamic data creation state
@@ -1295,7 +1295,7 @@ export default function GraphExplorer() {
   }
 
   return (
-    <div className="w-full h-screen bg-gray-50 flex">
+    <div className="w-full min-h-screen bg-gray-50 flex">
       {/* Left Panel - Legend and Controls - Resizable */}
       <div 
         className="bg-white border-r border-gray-200 p-3 overflow-y-auto relative"
@@ -1600,15 +1600,15 @@ export default function GraphExplorer() {
       </div>
 
       {/* Center Panel - Graph Display - Resizable */}
-      <div className="flex-1 relative flex flex-col">
+      <div className="flex-1 relative flex flex-col h-full">
                 {/* Graph Container */}
         <div 
           key={`graph-container-${selectedDataExample}`} 
           className="relative"
           style={{ 
             height: graphHeight, 
-            minHeight: 300,
-            maxHeight: '75vh'
+            minHeight: 400,
+            maxHeight: '80vh'
           }}
         >
           <svg
@@ -1761,8 +1761,8 @@ export default function GraphExplorer() {
           style={{ 
             fontSize: '12px',
             height: dataTableHeight,
-            minHeight: 150,
-            maxHeight: '35vh'
+            minHeight: 120,
+            maxHeight: '25vh'
           }}
         >
           {/* Compact Data Example Selector */}
