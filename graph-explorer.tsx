@@ -1710,32 +1710,23 @@ export default function GraphExplorer() {
                 edgeOpacity = 0.7
               }
 
-              // Determine edge styling based on actual relationship evaluation
-              let strokeColor = "#6b7280" // default gray
+              // Determine edge styling based on match score
+              let strokeColor = "#10b981" // default green for positive
               let strokeDasharray = "none"
               let strokeWidth = 2
 
-              // Evaluate the actual relationship based on match rules
-              if (unifiedEdge.positiveFields.length > 0 && unifiedEdge.negativeFields.length === 0) {
-                // Pure positive relationship - all fields match
+              // Use match score to determine edge color and style
+              if (unifiedEdge.matchScore > 0.001) {
+                // Positive relationship - green solid line
                 strokeColor = "#10b981" // green
-                strokeWidth = 2
-              } else if (unifiedEdge.positiveFields.length === 0 && unifiedEdge.negativeFields.length > 0) {
-                // Pure negative relationship - all fields differ
+                strokeDasharray = "none"
+              } else if (unifiedEdge.matchScore < -0.001) {
+                // Negative relationship - red dashed line
                 strokeColor = "#ef4444" // red
                 strokeDasharray = "5,5"
-                strokeWidth = 2
-              } else if (unifiedEdge.positiveFields.length > 0 && unifiedEdge.negativeFields.length > 0) {
-                // Mixed relationship - some fields match, some differ
-                // Use the dominant relationship type
-                if (unifiedEdge.positiveFields.length >= unifiedEdge.negativeFields.length) {
-                  strokeColor = "#10b981" // green (positive dominant)
-                  strokeWidth = 2
-                } else {
-                  strokeColor = "#ef4444" // red (negative dominant)
-                  strokeDasharray = "5,5"
-                  strokeWidth = 2
-                }
+              } else {
+                // Neutral/zero score - don't render this edge
+                return null
               }
 
               // Adjust stroke width for hover/selection states
