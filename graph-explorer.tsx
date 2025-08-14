@@ -1058,6 +1058,138 @@ export default function GraphExplorer() {
     setDynamicRecords([...dynamicRecords, record])
   }
 
+  // Functions to add records to existing examples
+  const addFullRecordToExample = () => {
+    const newId = `R${String(editableData.length + 1)}`
+    const firstName = generateRandomFirstName()
+    const lastName = generateRandomLastName()
+    
+    // Try to reuse some existing data from the example to create denser connections
+    const existingRecords = editableData.filter(r => r.salutation || r.firstName || r.lastName || r.email || r.phone || r.party)
+    let reusedFields: any = {}
+    
+    if (existingRecords.length > 0) {
+      const randomExisting = existingRecords[Math.floor(Math.random() * existingRecords.length)]
+      
+      // 50% chance to reuse salutation
+      if (Math.random() < 0.5 && randomExisting.salutation) {
+        reusedFields.salutation = randomExisting.salutation
+      } else {
+        reusedFields.salutation = generateRandomSalutation()
+      }
+      
+      // 60% chance to reuse party (creates good clustering)
+      if (Math.random() < 0.6 && randomExisting.party) {
+        reusedFields.party = randomExisting.party
+      } else {
+        reusedFields.party = generateRandomParty()
+      }
+      
+      // 40% chance to reuse phone (creates phone-based connections)
+      if (Math.random() < 0.4 && randomExisting.phone) {
+        reusedFields.phone = randomExisting.phone
+      } else {
+        reusedFields.phone = generateRandomPhone()
+      }
+    } else {
+      reusedFields.salutation = generateRandomSalutation()
+      reusedFields.party = generateRandomParty()
+      reusedFields.phone = generateRandomPhone()
+    }
+    
+    const newRecord = {
+      recordId: newId,
+      salutation: reusedFields.salutation,
+      firstName: firstName,
+      lastName: lastName,
+      email: generateRandomEmail(firstName, lastName),
+      phone: reusedFields.phone,
+      party: reusedFields.party
+    }
+    
+    setEditableData([...editableData, newRecord])
+  }
+
+  const addPartialRecordToExample = () => {
+    const newId = `R${String(editableData.length + 1)}`
+    const firstName = generateRandomFirstName()
+    const lastName = generateRandomLastName()
+    
+    // Try to reuse some existing data from the example to create denser connections
+    const existingRecords = editableData.filter(r => r.salutation || r.firstName || r.lastName || r.email || r.phone || r.party)
+    let reusedFields: any = {}
+    
+    if (existingRecords.length > 0) {
+      const randomExisting = existingRecords[Math.floor(Math.random() * existingRecords.length)]
+      
+      // Higher chance to reuse party and phone for better clustering
+      if (randomExisting.party && Math.random() < 0.7) {
+        reusedFields.party = randomExisting.party
+      }
+      if (randomExisting.phone && Math.random() < 0.6) {
+        reusedFields.phone = randomExisting.phone
+      }
+      if (randomExisting.salutation && Math.random() < 0.5) {
+        reusedFields.salutation = randomExisting.salutation
+      }
+    }
+    
+    // Randomly fill some fields, leave others empty
+    const fields = ['salutation', 'firstName', 'lastName', 'email', 'phone', 'party']
+    const numFieldsToFill = Math.floor(Math.random() * 4) + 2 // Fill 2-5 fields
+    
+    const record: any = { recordId: newId }
+    fields.forEach(field => {
+      if (Math.random() < numFieldsToFill / fields.length) {
+        switch(field) {
+          case 'salutation':
+            record.salutation = reusedFields.salutation || generateRandomSalutation()
+            break
+          case 'firstName':
+            record.firstName = firstName
+            break
+          case 'lastName':
+            record.lastName = lastName
+            break
+          case 'email':
+            record.email = generateRandomEmail(firstName, lastName)
+            break
+          case 'phone':
+            record.phone = reusedFields.phone || generateRandomPhone()
+            break
+          case 'party':
+            record.party = reusedFields.party || generateRandomParty()
+            break
+        }
+      } else {
+        record[field] = ""
+      }
+    })
+    
+    setEditableData([...editableData, record])
+  }
+
+  const addEmptyRecordToExample = () => {
+    const newId = `R${String(editableData.length + 1)}`
+    const newRecord = {
+      recordId: newId,
+      salutation: "",
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      party: ""
+    }
+    
+    setEditableData([...editableData, newRecord])
+  }
+
+  const removeExampleRecord = (index: number) => {
+    if (editableData.length > 1) {
+      setEditableData(editableData.filter((_, i) => i !== index))
+    }
+  }
+
   const removeDynamicRecord = (index: number) => {
     if (dynamicRecords.length > 1) {
       setDynamicRecords(dynamicRecords.filter((_, i) => i !== index))
@@ -1629,37 +1761,50 @@ export default function GraphExplorer() {
             </div>
           </div>
 
-          {/* Simple Add Record Button for Custom Data */}
-          {selectedDataExample === -1 && (
-            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-blue-800">💡 <strong>Tip:</strong> All fields are editable except Record-Id and UUID (shaded gray). Use the buttons to add different types of rows.</span>
-                <div className="flex gap-2">
-                  <button
-                    onClick={addFullRecord}
-                    className="px-3 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded transition-colors"
-                    title="Add a record with all fields filled with random realistic data"
-                  >
-                    + Add Full Row
-                  </button>
-                  <button
-                    onClick={addPartialRecord}
-                    className="px-3 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
-                    title="Add a record with some fields randomly filled, others empty"
-                  >
-                    + Add Partial Row
-                  </button>
-                  <button
-                    onClick={addEmptyRecord}
-                    className="px-3 py-1 text-xs bg-gray-500 hover:bg-gray-600 text-white rounded transition-colors"
-                    title="Add a completely empty record"
-                  >
-                    + Add Empty Row
-                  </button>
-                </div>
+          {/* Add Record Buttons for All Data Types */}
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-blue-800">
+                💡 <strong>Tip:</strong> All fields are editable except Record-Id and UUID (shaded gray). 
+                {selectedDataExample === -1 
+                  ? " Use the buttons to add different types of rows." 
+                  : " Add rows to expand this example for testing."
+                }
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={selectedDataExample === -1 ? addFullRecord : addFullRecordToExample}
+                  className="px-3 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded transition-colors"
+                  title={selectedDataExample === -1 
+                    ? "Add a record with all fields filled with random realistic data"
+                    : "Add a record with all fields filled to this example"
+                  }
+                >
+                  + Add Full Row
+                </button>
+                <button
+                  onClick={selectedDataExample === -1 ? addPartialRecord : addPartialRecordToExample}
+                  className="px-3 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
+                  title={selectedDataExample === -1 
+                    ? "Add a record with some fields randomly filled, others empty"
+                    : "Add a record with some fields randomly filled to this example"
+                  }
+                >
+                  + Add Partial Row
+                </button>
+                <button
+                  onClick={selectedDataExample === -1 ? addEmptyRecord : addEmptyRecordToExample}
+                  className="px-3 py-1 text-xs bg-gray-500 hover:bg-gray-600 text-white rounded transition-colors"
+                  title={selectedDataExample === -1 
+                    ? "Add a completely empty record"
+                    : "Add a completely empty record to this example"
+                  }
+                >
+                  + Add Empty Row
+                </button>
               </div>
             </div>
-          )}
+          </div>
           
           <table className="min-w-full text-xs text-left">
             <thead className="bg-gray-100">
@@ -1688,17 +1833,17 @@ export default function GraphExplorer() {
                           onMouseEnter={() => setHoveredNode(node)}
                           onMouseLeave={() => setHoveredNode(null)}
                         >
-                          {isCustomData && dynamicRecords.length > 1 && (
+                          {(isCustomData && dynamicRecords.length > 1) || (!isCustomData && editableData.length > 1) ? (
                             <td className="px-1 py-1 border w-8">
                               <button
-                                onClick={() => removeDynamicRecord(index)}
+                                onClick={() => isCustomData ? removeDynamicRecord(index) : removeExampleRecord(index)}
                                 className="w-4 h-4 text-red-500 hover:text-red-700 hover:bg-red-50 rounded text-xs"
                                 title="Remove record"
                               >
                                 ×
                               </button>
                             </td>
-                          )}
+                          ) : null}
                           <td className="px-2 py-1 border font-mono bg-gray-100 text-gray-600">{node.recordId}</td>
                           <td className="px-2 py-1 border font-mono bg-gray-100 text-gray-600">{node.uuid || "—"}</td>
                           <td className="px-2 py-1 border">
