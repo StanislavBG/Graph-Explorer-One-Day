@@ -256,7 +256,7 @@ export default function GraphExplorer() {
       const [graphHeight, setGraphHeight] = useState(500) // Resizable graph height - main focus area
     const [leftPanelWidth, setLeftPanelWidth] = useState(320) // Resizable left panel width
     const [rightPanelWidth, setRightPanelWidth] = useState(320) // Resizable right panel width
-    const [dataTableHeight, setDataTableHeight] = useState(200) // Resizable data table height - reduced default
+
   const [isClient, setIsClient] = useState(false) // Prevent hydration mismatch
   
   // Dynamic data creation state
@@ -307,7 +307,7 @@ export default function GraphExplorer() {
     updateSize()
     window.addEventListener("resize", updateSize)
     return () => window.removeEventListener("resize", updateSize)
-  }, [graphHeight, leftPanelWidth, rightPanelWidth, dataTableHeight]) // Update when resizable areas change
+  }, [graphHeight, leftPanelWidth, rightPanelWidth]) // Update when resizable areas change
 
   // Initialize editable data when example is selected
   useEffect(() => {
@@ -1762,10 +1762,7 @@ export default function GraphExplorer() {
           key={`data-table-${selectedDataExample}`} 
           className="w-full bg-white border-t border-gray-200 overflow-x-auto mt-4"
           style={{ 
-            fontSize: '12px',
-            height: dataTableHeight,
-            minHeight: 150,
-            maxHeight: '35vh'
+            fontSize: '12px'
           }}
         >
           {/* Compact Data Example Selector */}
