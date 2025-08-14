@@ -106,7 +106,7 @@ const matchRules = [
     children: [
       {
         name: "Rule-15",
-        fields: ["phone"],
+        fields: ["party", "phone"],
         children: [],
       },
     ],
@@ -266,9 +266,20 @@ export default function GraphExplorer() {
     phone: string
     party: string
   }>>([
-    { recordId: "id-001", salutation: "", firstName: "", lastName: "", email: "", phone: "", party: "" },
-    { recordId: "id-002", salutation: "", firstName: "", lastName: "", email: "", phone: "", party: "" }
+    { recordId: "id-001", salutation: "Mr.", firstName: "John", lastName: "Smith", email: "john.smith@email.com", phone: "(555) 123-4567", party: "Party-001" },
+    { recordId: "id-002", salutation: "Ms.", firstName: "Sarah", lastName: "Johnson", email: "sarah.j@email.com", phone: "(555) 987-6543", party: "Party-002" }
   ])
+
+  // Editable data state for all examples
+  const [editableData, setEditableData] = useState<Array<{
+    recordId: string
+    salutation: string
+    firstName: string
+    lastName: string
+    email: string
+    phone: string
+    party: string
+  }>>([])
 
 
 
@@ -294,6 +305,25 @@ export default function GraphExplorer() {
     return () => window.removeEventListener("resize", updateSize)
   }, [])
 
+  // Initialize editable data when example is selected
+  useEffect(() => {
+    if (selectedDataExample !== -1 && rawData[selectedDataExample]) {
+      const exampleData = rawData[selectedDataExample].data
+      const editableRecords = exampleData.map((record: any) => ({
+        recordId: record["Record-Id"] || "",
+        salutation: record["Salutation"] || "",
+        firstName: record["First Name"] || "",
+        lastName: record["Last Name"] || "",
+        email: record["Email"] || "",
+        phone: record["Phone"] || "",
+        party: record["Party"] || ""
+      }))
+      setEditableData(editableRecords)
+    } else {
+      setEditableData([])
+    }
+  }, [selectedDataExample])
+
   // Calculate center and radius dynamically for the graph area only
   const centerX = svgSize.width / 2
   const centerY = svgSize.height / 2
@@ -310,7 +340,15 @@ export default function GraphExplorer() {
         "Phone": record.phone,
         "Party": record.party
       }))
-    : rawData[selectedDataExample]?.data || []
+    : (editableData.length > 0 ? editableData.map(record => ({
+        "Record-Id": record.recordId,
+        "Salutation": record.salutation,
+        "First Name": record.firstName,
+        "Last Name": record.lastName,
+        "Email": record.email,
+        "Phone": record.phone,
+        "Party": record.party
+      })) : rawData[selectedDataExample]?.data || [])
   
   // Process the selected data into the format expected by the app
   const nodeData = useMemo(() => {
@@ -914,15 +952,110 @@ export default function GraphExplorer() {
 
   const addFullRecord = () => {
     const newId = `id-${String(dynamicRecords.length + 1).padStart(3, '0')}`
+    const firstName = generateRandomFirstName()
+    const lastName = generateRandomLastName()
+    
+    // Try to reuse some existing data to create denser connections
+    const existingRecords = dynamicRecords.filter(r => r.salutation || r.firstName || r.lastName || r.email || r.phone || r.party)
+    let reusedFields: any = {}
+    
+    if (existingRecords.length > 0) {
+      const randomExisting = existingRecords[Math.floor(Math.random() * existingRecords.length)]
+      
+      // 50% chance to reuse salutation
+      if (Math.random() < 0.5 && randomExisting.salutation) {
+        reusedFields.salutation = randomExisting.salutation
+      } else {
+        reusedFields.salutation = generateRandomSalutation()
+      }
+      
+      // 60% chance to reuse party (creates good clustering)
+      if (Math.random() < 0.6 && randomExisting.party) {
+        reusedFields.party = randomExisting.party
+      } else {
+        reusedFields.party = generateRandomParty()
+      }
+      
+      // 40% chance to reuse phone (creates phone-based connections)
+      if (Math.random() < 0.4 && randomExisting.phone) {
+        reusedFields.phone = randomExisting.phone
+      } else {
+        reusedFields.phone = generateRandomPhone()
+      }
+    } else {
+      reusedFields.salutation = generateRandomSalutation()
+      reusedFields.party = generateRandomParty()
+      reusedFields.phone = generateRandomPhone()
+    }
+    
     setDynamicRecords([...dynamicRecords, {
       recordId: newId,
-      salutation: "Mr.",
-      firstName: "John",
-      lastName: "Doe",
-      email: "john.doe@example.com",
-      phone: "(555) 123-4567",
-      party: "Party-001"
+      salutation: reusedFields.salutation,
+      firstName: firstName,
+      lastName: lastName,
+      email: generateRandomEmail(firstName, lastName),
+      phone: reusedFields.phone,
+      party: reusedFields.party
     }])
+  }
+
+  const addPartialRecord = () => {
+    const newId = `id-${String(dynamicRecords.length + 1).padStart(3, '0')}`
+    const firstName = generateRandomFirstName()
+    const lastName = generateRandomLastName()
+    
+    // Try to reuse some existing data to create denser connections
+    const existingRecords = dynamicRecords.filter(r => r.salutation || r.firstName || r.lastName || r.email || r.phone || r.party)
+    let reusedFields: any = {}
+    
+    if (existingRecords.length > 0) {
+      const randomExisting = existingRecords[Math.floor(Math.random() * existingRecords.length)]
+      
+      // Higher chance to reuse party and phone for better clustering
+      if (randomExisting.party && Math.random() < 0.7) {
+        reusedFields.party = randomExisting.party
+      }
+      if (randomExisting.phone && Math.random() < 0.6) {
+        reusedFields.phone = randomExisting.phone
+      }
+      if (randomExisting.salutation && Math.random() < 0.5) {
+        reusedFields.salutation = randomExisting.salutation
+      }
+    }
+    
+    // Randomly fill some fields, leave others empty
+    const fields = ['salutation', 'firstName', 'lastName', 'email', 'phone', 'party']
+    const numFieldsToFill = Math.floor(Math.random() * 4) + 2 // Fill 2-5 fields
+    
+    const record: any = { recordId: newId }
+    fields.forEach(field => {
+      if (Math.random() < numFieldsToFill / fields.length) {
+        switch(field) {
+          case 'salutation':
+            record.salutation = reusedFields.salutation || generateRandomSalutation()
+            break
+          case 'firstName':
+            record.firstName = firstName
+            break
+          case 'lastName':
+            record.lastName = lastName
+            break
+          case 'email':
+            record.email = generateRandomEmail(firstName, lastName)
+            break
+          case 'phone':
+            record.phone = reusedFields.phone || generateRandomPhone()
+            break
+          case 'party':
+            record.party = reusedFields.party || generateRandomParty()
+            break
+        }
+      } else {
+        record[field] = ""
+      }
+    })
+    
+    setDynamicRecords([...dynamicRecords, record])
   }
 
   const removeDynamicRecord = (index: number) => {
@@ -935,6 +1068,53 @@ export default function GraphExplorer() {
     const updatedRecords = [...dynamicRecords]
     updatedRecords[index] = { ...updatedRecords[index], [field]: value }
     setDynamicRecords(updatedRecords)
+  }
+
+  const updateEditableData = (index: number, field: string, value: string) => {
+    const updatedData = [...editableData]
+    updatedData[index] = { ...updatedData[index], [field]: value }
+    setEditableData(updatedData)
+  }
+
+  // Helper functions to generate random realistic data
+  const generateRandomSalutation = () => {
+    const salutations = ["Mr.", "Ms.", "Dr.", "Prof.", "Mrs.", "Miss"]
+    return salutations[Math.floor(Math.random() * salutations.length)]
+  }
+
+  const generateRandomFirstName = () => {
+    const firstNames = ["James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael", "Linda", "David", "Elizabeth", "William", "Barbara", "Richard", "Susan", "Joseph", "Jessica", "Thomas", "Sarah", "Christopher", "Karen"]
+    return firstNames[Math.floor(Math.random() * firstNames.length)]
+  }
+
+  const generateRandomLastName = () => {
+    const lastNames = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin"]
+    return lastNames[Math.floor(Math.random() * lastNames.length)]
+  }
+
+  const generateRandomEmail = (firstName: string, lastName: string) => {
+    const domains = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "company.com", "business.org"]
+    const domain = domains[Math.floor(Math.random() * domains.length)]
+    const emailFormats = [
+      `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${domain}`,
+      `${firstName.toLowerCase()}${lastName.toLowerCase()}@${domain}`,
+      `${firstName.toLowerCase()}_${lastName.toLowerCase()}@${domain}`,
+      `${firstName.toLowerCase()}@${domain}`
+    ]
+    return emailFormats[Math.floor(Math.random() * emailFormats.length)]
+  }
+
+  const generateRandomPhone = () => {
+    const areaCodes = ["555", "444", "333", "222", "111"]
+    const areaCode = areaCodes[Math.floor(Math.random() * areaCodes.length)]
+    const prefix = Math.floor(Math.random() * 900) + 100
+    const line = Math.floor(Math.random() * 9000) + 1000
+    return `(${areaCode}) ${prefix}-${line}`
+  }
+
+  const generateRandomParty = () => {
+    const parties = ["Party-001", "Party-002", "Party-003", "Party-004", "Party-005", "Party-006", "Party-007", "Party-008", "Party-009", "Party-010"]
+    return parties[Math.floor(Math.random() * parties.length)]
   }
 
 
@@ -1441,7 +1621,7 @@ export default function GraphExplorer() {
               <strong>Current Example:</strong> {selectedDataExample === -1 ? "NEW - Custom Data" : rawData[selectedDataExample]?.name} - 
               Switch between examples to see how the clustering algorithm performs on different data sets.
               {selectedDataExample !== -1 && (
-                <span className="block mt-1 text-gray-600">💡 <strong>Note:</strong> Example data is read-only. Use "NEW - Create Custom Data" to edit fields.</span>
+                <span className="block mt-1 text-gray-600">💡 <strong>Note:</strong> All data examples are now editable inline. Changes will update the graph in real-time.</span>
               )}
             </div>
           </div>
@@ -1450,21 +1630,28 @@ export default function GraphExplorer() {
           {selectedDataExample === -1 && (
             <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-blue-800">💡 <strong>Tip:</strong> All fields are editable except Record-Id and UUID (shaded gray)</span>
+                <span className="text-sm text-blue-800">💡 <strong>Tip:</strong> All fields are editable except Record-Id and UUID (shaded gray). Use the buttons to add different types of rows.</span>
                 <div className="flex gap-2">
+                  <button
+                    onClick={addFullRecord}
+                    className="px-3 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded transition-colors"
+                    title="Add a record with all fields filled with random realistic data"
+                  >
+                    + Add Full Row
+                  </button>
+                  <button
+                    onClick={addPartialRecord}
+                    className="px-3 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
+                    title="Add a record with some fields randomly filled, others empty"
+                  >
+                    + Add Partial Row
+                  </button>
                   <button
                     onClick={addEmptyRecord}
                     className="px-3 py-1 text-xs bg-gray-500 hover:bg-gray-600 text-white rounded transition-colors"
                     title="Add a completely empty record"
                   >
-                    + Add Empty
-                  </button>
-                  <button
-                    onClick={addFullRecord}
-                    className="px-3 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
-                    title="Add a record with sample data"
-                  >
-                    + Add Full
+                    + Add Empty Row
                   </button>
                 </div>
               </div>
@@ -1489,6 +1676,7 @@ export default function GraphExplorer() {
                     {finalNodeData.map((node, index) => {
                       const isCustomData = selectedDataExample === -1
                       const dynamicRecord = isCustomData ? dynamicRecords[index] : null
+                      const editableRecord = selectedDataExample !== -1 ? editableData[index] : null
                       
                       return (
                         <tr
@@ -1517,10 +1705,14 @@ export default function GraphExplorer() {
                                 value={dynamicRecord?.salutation || ""}
                                 onChange={(e) => updateDynamicRecord(index, 'salutation', e.target.value)}
                                 className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
-                                placeholder="Mr., Ms., Dr."
                               />
                             ) : (
-                              node.salutation || "—"
+                              <input
+                                type="text"
+                                value={editableRecord?.salutation || ""}
+                                onChange={(e) => updateEditableData(index, 'salutation', e.target.value)}
+                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                              />
                             )}
                           </td>
                           <td className="px-2 py-1 border">
@@ -1530,10 +1722,14 @@ export default function GraphExplorer() {
                                 value={dynamicRecord?.firstName || ""}
                                 onChange={(e) => updateDynamicRecord(index, 'firstName', e.target.value)}
                                 className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
-                                placeholder="John, Jane"
                               />
                             ) : (
-                              node.firstName || "—"
+                              <input
+                                type="text"
+                                value={editableRecord?.firstName || ""}
+                                onChange={(e) => updateEditableData(index, 'firstName', e.target.value)}
+                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                              />
                             )}
                           </td>
                           <td className="px-2 py-1 border">
@@ -1543,10 +1739,14 @@ export default function GraphExplorer() {
                                 value={dynamicRecord?.lastName || ""}
                                 onChange={(e) => updateDynamicRecord(index, 'lastName', e.target.value)}
                                 className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
-                                placeholder="Doe, Smith"
                               />
                             ) : (
-                              node.lastName || "—"
+                              <input
+                                type="text"
+                                value={editableRecord?.lastName || ""}
+                                onChange={(e) => updateEditableData(index, 'lastName', e.target.value)}
+                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                              />
                             )}
                           </td>
                           <td className="px-2 py-1 border break-all">
@@ -1556,10 +1756,14 @@ export default function GraphExplorer() {
                                 value={dynamicRecord?.email || ""}
                                 onChange={(e) => updateDynamicRecord(index, 'email', e.target.value)}
                                 className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
-                                placeholder="john@example.com"
                               />
                             ) : (
-                              node.email || "—"
+                              <input
+                                type="text"
+                                value={editableRecord?.email || ""}
+                                onChange={(e) => updateEditableData(index, 'email', e.target.value)}
+                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                              />
                             )}
                           </td>
                           <td className="px-2 py-1 border">
@@ -1569,10 +1773,14 @@ export default function GraphExplorer() {
                                 value={dynamicRecord?.phone || ""}
                                 onChange={(e) => updateDynamicRecord(index, 'phone', e.target.value)}
                                 className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
-                                placeholder="(555) 123-4567"
                               />
                             ) : (
-                              node.phone || "—"
+                              <input
+                                type="text"
+                                value={editableRecord?.phone || ""}
+                                onChange={(e) => updateEditableData(index, 'phone', e.target.value)}
+                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                              />
                             )}
                           </td>
                           <td className="px-2 py-1 border">
@@ -1582,10 +1790,14 @@ export default function GraphExplorer() {
                                 value={dynamicRecord?.party || ""}
                                 onChange={(e) => updateDynamicRecord(index, 'party', e.target.value)}
                                 className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
-                                placeholder="Party-001"
                               />
                             ) : (
-                              node.party || "—"
+                              <input
+                                type="text"
+                                value={editableRecord?.party || ""}
+                                onChange={(e) => updateEditableData(index, 'party', e.target.value)}
+                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                              />
                             )}
                           </td>
                         </tr>
@@ -2049,7 +2261,7 @@ export default function GraphExplorer() {
                       <div className="ml-4 space-y-1">
                         <div className="flex items-center gap-2">
                           <div className="w-1.5 h-1.5 rounded-full bg-orange-300"></div>
-                          <span className="text-orange-500">Rule-15: Phone only</span>
+                          <span className="text-orange-500">Rule-15: Party + Phone</span>
                         </div>
                       </div>
                     </div>
