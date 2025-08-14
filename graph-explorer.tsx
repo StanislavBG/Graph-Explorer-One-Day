@@ -641,69 +641,194 @@ export default function GraphExplorer() {
     )
   }
 
-  // Clustering logic based on transitivity through positive paths
-  const nodeClusters = useMemo(() => {
+  // Alternative clustering algorithm that handles negative edge constraints more robustly
+  const advancedNodeClusters = useMemo(() => {
     if (nodeData.length === 0) return new Map<string, number>()
     
     const clusters = new Map<string, number>()
     const clusterGroups = new Map<number, Set<string>>()
     let nextClusterId = 1
     
-    // Helper function to find all nodes reachable through positive paths from a starting node
-    const findConnectedComponent = (startNodeId: string, visited: Set<string> = new Set()): Set<string> => {
+    // First pass: create initial clusters based on positive edges only
+    const initialClusters = new Map<string, number>()
+    const initialClusterGroups = new Map<number, Set<string>>()
+    let initialClusterId = 1
+    
+    const findInitialConnectedComponent = (startNodeId: string, visited: Set<string> = new Set()): Set<string> => {
       if (visited.has(startNodeId)) return visited
       visited.add(startNodeId)
       
-      // Find all positive edges from this node
       const positiveEdges = edges.filter(e => 
         e.type === 'positive' && 
         (e.from === startNodeId || e.to === startNodeId)
       )
       
-      // Recursively explore all positive connections
       for (const edge of positiveEdges) {
         const nextNodeId = edge.from === startNodeId ? edge.to : edge.from
         if (!visited.has(nextNodeId)) {
-          findConnectedComponent(nextNodeId, visited)
+          findInitialConnectedComponent(nextNodeId, visited)
         }
       }
       
       return visited
     }
     
-    // Find all connected components through positive paths
     const visitedNodes = new Set<string>()
-    const connectedComponents: Set<string>[] = []
-    
     for (const node of nodeData) {
       if (!node || visitedNodes.has(node.recordId)) continue
       
-      // Find all nodes connected to this node through positive paths
-      const component = findConnectedComponent(node.recordId)
-      
-      // Add all nodes in this component to visited
+      const component = findInitialConnectedComponent(node.recordId)
       for (const nodeId of component) {
         visitedNodes.add(nodeId)
+        initialClusters.set(nodeId, initialClusterId)
       }
-      
-      connectedComponents.push(component)
+      initialClusterGroups.set(initialClusterId, component)
+      initialClusterId++
     }
     
-    // Create clusters from connected components
-    for (let i = 0; i < connectedComponents.length; i++) {
-      const component = connectedComponents[i]
-      const clusterId = nextClusterId++
+    // Second pass: split clusters that violate negative edge constraints
+    const finalClusters = new Map<string, number>()
+    const finalClusterGroups = new Map<number, Set<string>>()
+    let finalClusterId = 1
+    
+    for (const [clusterId, nodes] of initialClusterGroups) {
+      const nodeArray = Array.from(nodes)
+      const validSubclusters: Set<string>[] = []
       
-      // Assign all nodes in this component to the same cluster
-      for (const nodeId of component) {
-        clusters.set(nodeId, clusterId)
+      // Use a greedy approach to find valid subclusters
+      for (const nodeId of nodeArray) {
+        let addedToExisting = false
+        
+        // Try to add to existing valid subclusters
+        for (const subcluster of validSubclusters) {
+          let canAdd = true
+          
+          // Check if this node has negative edges to any node in this subcluster
+          for (const existingNodeId of subcluster) {
+            const hasNegativeEdge = edges.some(e => 
+              e.type === 'negative' && 
+              ((e.from === nodeId && e.to === existingNodeId) || 
+               (e.from === existingNodeId && e.to === nodeId))
+            )
+            
+            if (hasNegativeEdge) {
+              canAdd = false
+              break
+            }
+          }
+          
+          if (canAdd) {
+            subcluster.add(nodeId)
+            addedToExisting = true
+            break
+          }
+        }
+        
+        // If couldn't add to existing subclusters, create a new one
+        if (!addedToExisting) {
+          validSubclusters.push(new Set([nodeId]))
+        }
       }
       
-      clusterGroups.set(clusterId, component)
+      // Assign final cluster IDs to valid subclusters
+      for (const subcluster of validSubclusters) {
+        for (const nodeId of subcluster) {
+          finalClusters.set(nodeId, finalClusterId)
+        }
+        finalClusterGroups.set(finalClusterId, subcluster)
+        finalClusterId++
+      }
     }
     
-    return clusters
+    return finalClusters
   }, [nodeData, edges])
+  
+  // Use the advanced clustering algorithm instead of the basic one
+  const nodeClusters = advancedNodeClusters
+  
+  // Function to detect clustering constraint violations
+  const detectConstraintViolations = useMemo(() => {
+    const violations: Array<{
+      node1: string,
+      node2: string,
+      cluster1: number,
+      cluster2: number,
+      negativeEdgeType: string
+    }> = []
+    
+    if (!nodeClusters) return violations
+    
+    // Check all negative edges to see if they connect nodes in the same cluster
+    for (const edge of edges) {
+      if (edge.type === 'negative') {
+        const cluster1 = nodeClusters.get(edge.from)
+        const cluster2 = nodeClusters.get(edge.to)
+        
+        if (cluster1 !== undefined && cluster2 !== undefined && cluster1 === cluster2) {
+          violations.push({
+            node1: edge.from,
+            node2: edge.to,
+            cluster1: cluster1,
+            cluster2: cluster2,
+            negativeEdgeType: edge.nonMatchingFields.join(', ')
+          })
+        }
+      }
+    }
+    
+    return violations
+  }, [nodeClusters, edges])
+  
+  // Function to calculate clustering quality metrics
+  const clusteringQualityMetrics = useMemo(() => {
+    if (!nodeClusters || nodeData.length === 0) return null
+    
+    const totalNodes = nodeData.length
+    const totalEdges = edges.length
+    const positiveEdges = edges.filter(e => e.type === 'positive')
+    const negativeEdges = edges.filter(e => e.type === 'negative')
+    
+    // Count edges within clusters vs between clusters
+    let positiveWithinCluster = 0
+    let positiveBetweenClusters = 0
+    let negativeWithinCluster = 0
+    let negativeBetweenClusters = 0
+    
+    for (const edge of edges) {
+      const cluster1 = nodeClusters.get(edge.from)
+      const cluster2 = nodeClusters.get(edge.to)
+      
+      if (cluster1 !== undefined && cluster2 !== undefined) {
+        if (cluster1 === cluster2) {
+          // Edge within same cluster
+          if (edge.type === 'positive') positiveWithinCluster++
+          else if (edge.type === 'negative') negativeWithinCluster++
+        } else {
+          // Edge between different clusters
+          if (edge.type === 'positive') positiveBetweenClusters++
+          else if (edge.type === 'negative') negativeBetweenClusters++
+        }
+      }
+    }
+    
+    // Calculate metrics
+    const totalPositive = positiveEdges.length
+    const totalNegative = negativeEdges.length
+    const positiveIntraClusterRatio = totalPositive > 0 ? (positiveWithinCluster / totalPositive) * 100 : 0
+    const negativeInterClusterRatio = totalNegative > 0 ? (negativeBetweenClusters / totalNegative) * 100 : 0
+    
+    return {
+      totalNodes,
+      totalClusters: new Set(Array.from(nodeClusters.values())).size,
+      positiveIntraClusterRatio: Math.round(positiveIntraClusterRatio * 100) / 100,
+      negativeInterClusterRatio: Math.round(negativeInterClusterRatio * 100) / 100,
+      constraintViolations: detectConstraintViolations.length,
+      positiveWithinCluster,
+      positiveBetweenClusters,
+      negativeWithinCluster,
+      negativeBetweenClusters
+    }
+  }, [nodeClusters, nodeData, edges, detectConstraintViolations])
   
   // Get unique UUIDs for display purposes
   const uniqueUUIDs = useMemo(() => {
@@ -787,6 +912,33 @@ export default function GraphExplorer() {
             </CardContent>
           </Card>
 
+          {/* Clustering Algorithm Info */}
+          <Card className="border-blue-200 bg-blue-50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg text-blue-700">🔗 Advanced Clustering</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="text-sm text-blue-800">
+                <p className="mb-2">
+                  <strong>Constraint-Respecting Clustering:</strong> This algorithm prevents nodes with 
+                  negative relationships from being placed in the same cluster, even if they're connected 
+                  through positive transitive paths.
+                </p>
+                <p className="mb-2">
+                  <strong>Two-Phase Approach:</strong>
+                </p>
+                <ul className="list-disc list-inside ml-2 space-y-1">
+                  <li>Phase 1: Create initial clusters based on positive edges</li>
+                  <li>Phase 2: Split clusters that violate negative edge constraints</li>
+                </ul>
+                <p className="mt-2 text-xs">
+                  This ensures that negative relationships (dis-similarities) are properly respected 
+                  and don't get ignored due to longer transitive paths.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Node Clusters */}
           <Card>
             <CardHeader className="pb-3">
@@ -822,6 +974,85 @@ export default function GraphExplorer() {
               })()}
             </CardContent>
           </Card>
+
+          {/* Constraint Violations */}
+          {detectConstraintViolations.length > 0 && (
+            <Card className="border-red-200 bg-red-50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg text-red-700">⚠️ Constraint Violations</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="text-sm text-red-600 mb-3">
+                  The following nodes have negative relationships but are in the same cluster. 
+                  This indicates the clustering algorithm needs adjustment.
+                </div>
+                {detectConstraintViolations.map((violation, index) => (
+                  <div key={index} className="p-3 bg-red-100 rounded border border-red-200">
+                    <div className="text-sm font-medium text-red-800">
+                      {violation.node1} ↔ {violation.node2}
+                    </div>
+                    <div className="text-xs text-red-600">
+                      Both in Cluster {violation.cluster1 + 1} | 
+                      Negative: {violation.negativeEdgeType}
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Clustering Quality Metrics */}
+          {clusteringQualityMetrics && (
+            <Card className="border-green-200 bg-green-50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg text-green-700">📊 Clustering Quality</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="font-medium text-green-800">Nodes & Clusters</div>
+                    <div className="text-green-700">
+                      {clusteringQualityMetrics.totalNodes} nodes in {clusteringQualityMetrics.totalClusters} clusters
+                    </div>
+                  </div>
+                  <div>
+                    <div className="font-medium text-green-800">Constraint Violations</div>
+                    <div className="text-green-700">
+                      {clusteringQualityMetrics.constraintViolations} violations
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div>
+                    <div className="font-medium text-green-800">Positive Edge Distribution</div>
+                    <div className="text-green-700">
+                      <div className="flex justify-between text-xs">
+                        <span>Within clusters: {clusteringQualityMetrics.positiveWithinCluster}</span>
+                        <span>Between clusters: {clusteringQualityMetrics.positiveBetweenClusters}</span>
+                      </div>
+                      <div className="text-xs text-green-600">
+                        {clusteringQualityMetrics.positiveIntraClusterRatio}% positive edges within clusters
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <div className="font-medium text-green-800">Negative Edge Distribution</div>
+                    <div className="text-green-700">
+                      <div className="flex justify-between text-xs">
+                        <span>Within clusters: {clusteringQualityMetrics.negativeWithinCluster}</span>
+                        <span>Between clusters: {clusteringQualityMetrics.negativeBetweenClusters}</span>
+                      </div>
+                      <div className="text-xs text-green-600">
+                        {clusteringQualityMetrics.negativeInterClusterRatio}% negative edges between clusters
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Statistics */}
           <Card>
