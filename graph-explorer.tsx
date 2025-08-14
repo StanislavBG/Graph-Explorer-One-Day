@@ -2275,15 +2275,18 @@ export default function GraphExplorer() {
                 <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-blue-800">Match Score:</span>
-                    <span className={`text-sm font-bold px-2 py-1 rounded ${
-                      (selectedEdge || hoveredEdge)?.matchScore && (selectedEdge || hoveredEdge)?.matchScore > 0 
-                        ? 'bg-green-100 text-green-700' 
-                        : (selectedEdge || hoveredEdge)?.matchScore && (selectedEdge || hoveredEdge)?.matchScore < 0 
-                          ? 'bg-red-100 text-red-700' 
-                          : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {((selectedEdge || hoveredEdge)?.matchScore || 0).toFixed(3)}
-                    </span>
+                    {(() => {
+                      const edge = selectedEdge || hoveredEdge
+                      const score = edge?.matchScore || 0
+                      const isPositive = score > 0
+                      const isNegative = score < 0
+                      const bgClass = isPositive ? 'bg-green-100 text-green-700' : isNegative ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                      return (
+                        <span className={`text-sm font-bold px-2 py-1 rounded ${bgClass}`}>
+                          {score.toFixed(3)}
+                        </span>
+                      )
+                    })()}
                   </div>
                   <div className="text-xs text-blue-600 mt-1">
                     <strong>Formula:</strong> L1 rules × 1.0 + L2 rules × 0.75 + L3 rules × 0.56 + ...
