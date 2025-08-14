@@ -242,6 +242,20 @@ export default function GraphExplorer() {
   const [showRuleModal, setShowRuleModal] = useState(false)
   const [selectedDataExample, setSelectedDataExample] = useState(0) // Index of selected data example
   const [isClient, setIsClient] = useState(false) // Prevent hydration mismatch
+  
+  // Dynamic data creation state
+  const [showDynamicForm, setShowDynamicForm] = useState(false)
+  const [dynamicRecords, setDynamicRecords] = useState<Array<{
+    recordId: string
+    salutation: string
+    firstName: string
+    lastName: string
+    email: string
+    phone: string
+  }>>([
+    { recordId: "id-001", salutation: "", firstName: "", lastName: "", email: "", phone: "" },
+    { recordId: "id-002", salutation: "", firstName: "", lastName: "", email: "", phone: "" }
+  ])
 
   // For dynamic sizing
   const svgRef = useRef<SVGSVGElement | null>(null)
@@ -269,7 +283,16 @@ export default function GraphExplorer() {
   const radius = Math.min(svgSize.width, svgSize.height) * 0.425 // ~85% diameter of the SVG area
 
   // Get the currently selected data set
-  const currentData = rawData[selectedDataExample]?.data || []
+  const currentData = selectedDataExample === -1 
+    ? dynamicRecords.map(record => ({
+        "Record-Id": record.recordId,
+        "Salutation": record.salutation,
+        "First Name": record.firstName,
+        "Last Name": record.lastName,
+        "Email": record.email,
+        "Phone": record.phone
+      }))
+    : rawData[selectedDataExample]?.data || []
   
   // Process the selected data into the format expected by the app
   const nodeData = useMemo(() => {
@@ -856,6 +879,31 @@ export default function GraphExplorer() {
     return Array.from(new Set(finalNodeData.map((node) => node.uuid)))
   }, [finalNodeData])
 
+  // Helper functions for dynamic data creation
+  const addDynamicRecord = () => {
+    const newId = `id-${String(dynamicRecords.length + 1).padStart(3, '0')}`
+    setDynamicRecords([...dynamicRecords, {
+      recordId: newId,
+      salutation: "",
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: ""
+    }])
+  }
+
+  const removeDynamicRecord = (index: number) => {
+    if (dynamicRecords.length > 1) {
+      setDynamicRecords(dynamicRecords.filter((_, i) => i !== index))
+    }
+  }
+
+  const updateDynamicRecord = (index: number, field: string, value: string) => {
+    const updatedRecords = [...dynamicRecords]
+    updatedRecords[index] = { ...updatedRecords[index], [field]: value }
+    setDynamicRecords(updatedRecords)
+  }
+
   const getNodeColor = (recordId: string) => {
     // Use cluster-based coloring for meaningful node grouping
     if (!recordId || !nodeClusters) return "#6b7280"
@@ -1332,6 +1380,7 @@ export default function GraphExplorer() {
                 onChange={(e) => setSelectedDataExample(Number(e.target.value))}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
+                <option value={-1} className="font-semibold text-blue-600">🆕 NEW - Create Custom Data</option>
                 {rawData.map((example, index) => (
                   <option key={index} value={index}>
                     {example.name}
@@ -1354,14 +1403,30 @@ export default function GraphExplorer() {
               </button>
             </div>
             <div className="mt-2 text-xs text-gray-600">
-              <strong>Current Example:</strong> {rawData[selectedDataExample]?.name} - 
+              <strong>Current Example:</strong> {selectedDataExample === -1 ? "NEW - Custom Data" : rawData[selectedDataExample]?.name} - 
               Switch between examples to see how the clustering algorithm performs on different data sets.
             </div>
           </div>
+
+          {/* Simple Add Record Button for Custom Data */}
+          {selectedDataExample === -1 && (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-blue-800">💡 <strong>Tip:</strong> Edit cells directly in the table below!</span>
+                <button
+                  onClick={addDynamicRecord}
+                  className="px-3 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
+                >
+                  + Add Record
+                </button>
+              </div>
+            </div>
+          )}
           
           <table className="min-w-full text-xs text-left">
             <thead className="bg-gray-100">
               <tr>
+                {selectedDataExample === -1 && <th className="px-1 py-1 border w-8"></th>}
                 <th className="px-2 py-1 border">Record ID</th>
                 <th className="px-2 py-1 border">UUDI</th>
                 <th className="px-2 py-1 border">Salutation</th>
@@ -1371,24 +1436,100 @@ export default function GraphExplorer() {
                 <th className="px-2 py-1 border">Phone</th>
               </tr>
             </thead>
-                          <tbody>
-                {finalNodeData.map((node) => (
-                  <tr
-                    key={node.recordId}
-                    className="hover:bg-gray-50"
-                    onMouseEnter={() => setHoveredNode(node)}
-                    onMouseLeave={() => setHoveredNode(null)}
-                  >
-                    <td className="px-2 py-1 border font-mono">{node.recordId}</td>
-                    <td className="px-2 py-1 border font-mono">{node.uuid || "—"}</td>
-                    <td className="px-2 py-1 border">{node.salutation || "—"}</td>
-                    <td className="px-2 py-1 border">{node.firstName || "—"}</td>
-                    <td className="px-2 py-1 border">{node.lastName || "—"}</td>
-                    <td className="px-2 py-1 border break-all">{node.email || "—"}</td>
-                    <td className="px-2 py-1 border">{node.phone || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
+                                            <tbody>
+                    {finalNodeData.map((node, index) => {
+                      const isCustomData = selectedDataExample === -1
+                      const dynamicRecord = isCustomData ? dynamicRecords[index] : null
+                      
+                      return (
+                        <tr
+                          key={node.recordId}
+                          className="hover:bg-gray-50"
+                          onMouseEnter={() => setHoveredNode(node)}
+                          onMouseLeave={() => setHoveredNode(null)}
+                        >
+                          {isCustomData && dynamicRecords.length > 1 && (
+                            <td className="px-1 py-1 border w-8">
+                              <button
+                                onClick={() => removeDynamicRecord(index)}
+                                className="w-4 h-4 text-red-500 hover:text-red-700 hover:bg-red-50 rounded text-xs"
+                                title="Remove record"
+                              >
+                                ×
+                              </button>
+                            </td>
+                          )}
+                          <td className="px-2 py-1 border font-mono">{node.recordId}</td>
+                          <td className="px-2 py-1 border font-mono">{node.uuid || "—"}</td>
+                          <td className="px-2 py-1 border">
+                            {isCustomData ? (
+                              <input
+                                type="text"
+                                value={dynamicRecord?.salutation || ""}
+                                onChange={(e) => updateDynamicRecord(index, 'salutation', e.target.value)}
+                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                placeholder="Mr., Ms., Dr."
+                              />
+                            ) : (
+                              node.salutation || "—"
+                            )}
+                          </td>
+                          <td className="px-2 py-1 border">
+                            {isCustomData ? (
+                              <input
+                                type="text"
+                                value={dynamicRecord?.firstName || ""}
+                                onChange={(e) => updateDynamicRecord(index, 'firstName', e.target.value)}
+                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                placeholder="John, Jane"
+                              />
+                            ) : (
+                              node.firstName || "—"
+                            )}
+                          </td>
+                          <td className="px-2 py-1 border">
+                            {isCustomData ? (
+                              <input
+                                type="text"
+                                value={dynamicRecord?.lastName || ""}
+                                onChange={(e) => updateDynamicRecord(index, 'lastName', e.target.value)}
+                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                placeholder="Doe, Smith"
+                              />
+                            ) : (
+                              node.lastName || "—"
+                            )}
+                          </td>
+                          <td className="px-2 py-1 border break-all">
+                            {isCustomData ? (
+                              <input
+                                type="text"
+                                value={dynamicRecord?.email || ""}
+                                onChange={(e) => updateDynamicRecord(index, 'email', e.target.value)}
+                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                placeholder="john@example.com"
+                              />
+                            ) : (
+                              node.email || "—"
+                            )}
+                          </td>
+                          <td className="px-2 py-1 border">
+                            {isCustomData ? (
+                              <input
+                                type="text"
+                                value={dynamicRecord?.phone || ""}
+                                onChange={(e) => updateDynamicRecord(index, 'phone', e.target.value)}
+                                className="w-full px-1 py-0 text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                placeholder="(555) 123-4567"
+                              />
+                            ) : (
+                              node.phone || "—"
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
           </table>
         </div>
       </div>
