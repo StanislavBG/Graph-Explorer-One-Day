@@ -511,23 +511,34 @@ export default function GraphExplorer() {
                                   }
                                 }
             
-            // Only create edges for positive or negative relationships
-            if (overallStatus !== 'neutral') {
-              if (overallStatus === 'positive') {
-                console.log(`POSITIVE EDGE: ${node1.recordId} <-> ${node2.recordId} (${matchingFields.join(', ')})`)
+            // Create edges based on match score instead of binary status
+            // Only create edges when there's a meaningful relationship (non-zero match score)
+            if (Math.abs(matchScore) > 0.001) { // Small threshold to avoid floating point precision issues
+              // Determine edge type based on match score
+              let edgeType: "positive" | "negative" | "mixed"
+              if (matchScore > 0.001) {
+                edgeType = "positive"
+                console.log(`POSITIVE EDGE: ${node1.recordId} <-> ${node2.recordId} (Score: ${matchScore.toFixed(3)}, Fields: ${matchingFields.join(', ')})`)
+              } else if (matchScore < -0.001) {
+                edgeType = "negative"
+                console.log(`NEGATIVE EDGE: ${node1.recordId} <-> ${node2.recordId} (Score: ${matchScore.toFixed(3)}, Fields: ${nonMatchingFields.join(', ')})`)
+              } else {
+                edgeType = "positive" // Default to positive for very small positive scores
               }
+              
               edgeMap.set(
                 node1.recordId + '-' + node2.recordId,
                 {
                   from: node1.recordId,
                   to: node2.recordId,
-                  type: overallStatus,
+                  type: edgeType,
                   matchingFields,
                   nonMatchingFields,
                   rulesUsed,
                   matchScore: parseFloat(matchScore.toFixed(3)), // Round to 3 decimal places
                 }
               )
+              console.log(`EDGE CREATED: ${node1.recordId} <-> ${node2.recordId} | Type: ${edgeType} | Score: ${matchScore.toFixed(3)}`)
             }
           } catch (error) {
             console.warn(`Error processing node pair ${i}-${j}:`, error)
