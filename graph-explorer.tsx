@@ -607,7 +607,26 @@ export default function GraphExplorer() {
 
     if (lineLength === 0) return false
 
-    // Project circle center onto line
+    // Handle vertical lines (lineDx = 0) and horizontal lines (lineDy = 0) as special cases
+    if (Math.abs(lineDx) < 0.001) {
+      // Vertical line - closest point has same X coordinate
+      const closestX = lineStart.x
+      const closestY = Math.max(lineStart.y, Math.min(lineEnd.y, circleCenter.y))
+      const distanceX = circleCenter.x - closestX
+      const distanceY = circleCenter.y - closestY
+      const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY)
+      return distance < radius
+    } else if (Math.abs(lineDy) < 0.001) {
+      // Horizontal line - closest point has same Y coordinate
+      const closestX = Math.max(lineStart.x, Math.min(lineEnd.x, circleCenter.x))
+      const closestY = lineStart.y
+      const distanceX = circleCenter.x - closestX
+      const distanceY = circleCenter.y - closestY
+      const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY)
+      return distance < radius
+    }
+
+    // General case: project circle center onto line
     const t = Math.max(0, Math.min(1, (dx * lineDx + dy * lineDy) / (lineLength * lineLength)))
 
     // Closest point on line to circle center
@@ -1686,7 +1705,7 @@ export default function GraphExplorer() {
               const compositeEdge: Edge = {
                 from: unifiedEdge.from,
                 to: unifiedEdge.to,
-                type: unifiedEdge.hasBothTypes ? "mixed" : (unifiedEdge.positiveFields.length > 0 ? "positive" : "negative") as "positive" | "negative" | "mixed",
+                type: unifiedEdge.matchScore > 0.001 ? "positive" : "negative",
                 matchingFields: unifiedEdge.positiveFields,
                 nonMatchingFields: unifiedEdge.negativeFields,
                 rulesUsed: unifiedEdge.allRulesUsed,
@@ -1733,7 +1752,7 @@ export default function GraphExplorer() {
               if (isSelected) strokeWidth = 6
               else if (isHovered || isConnectedToNode) strokeWidth = 4
 
-              const pathData = drawStraightEdgeBetweenNodes(fromNode, toNode, "positive", nodeData, 30, false)
+              const pathData = drawStraightEdgeBetweenNodes(fromNode, toNode, compositeEdge.type === "mixed" ? "positive" : compositeEdge.type, nodeData, 30, false)
 
               return (
                 <path
