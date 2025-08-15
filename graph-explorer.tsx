@@ -339,25 +339,27 @@ export default function GraphExplorer() {
   const radius = Math.min(containerWidth, containerHeight) * 0.3 // Reduced to 30% to prevent clipping
 
   // Get the currently selected data set
-  const currentData = selectedDataExample === -1 
-    ? dynamicRecords.map(record => ({
-        "Record-Id": record.recordId,
-        "Salutation": record.salutation,
-        "First Name": record.firstName,
-        "Last Name": record.lastName,
-        "Email": record.email,
-        "Phone": record.phone,
-        "Party": record.party
-      }))
-    : (editableData.length > 0 ? editableData.map(record => ({
-        "Record-Id": record.recordId,
-        "Salutation": record.salutation,
-        "First Name": record.firstName,
-        "Last Name": record.lastName,
-        "Email": record.email,
-        "Phone": record.phone,
-        "Party": record.party
-      })) : rawData[selectedDataExample]?.data || [])
+  const currentData = useMemo(() => {
+    return selectedDataExample === -1 
+      ? dynamicRecords.map(record => ({
+          "Record-Id": record.recordId,
+          "Salutation": record.salutation,
+          "First Name": record.firstName,
+          "Last Name": record.lastName,
+          "Email": record.email,
+          "Phone": record.phone,
+          "Party": record.party
+        }))
+      : (editableData.length > 0 ? editableData.map(record => ({
+          "Record-Id": record.recordId,
+          "Salutation": record.salutation,
+          "First Name": record.firstName,
+          "Last Name": record.lastName,
+          "Email": record.email,
+          "Phone": record.phone,
+          "Party": record.party
+        })) : rawData[selectedDataExample]?.data || [])
+  }, [selectedDataExample, dynamicRecords, editableData, rawData])
   
   // Process the selected data into the format expected by the app
   const nodeData = useMemo(() => {
@@ -781,7 +783,7 @@ export default function GraphExplorer() {
     })
     
     return Array.from(edgeMap.values())
-  }, [edges])
+  }, [edges, nodeData]) // Also depend on nodeData to ensure updates when data changes
 
   // Helper function to check if a node pair has both positive and negative edges
   const hasCounterpartEdge = (fromId: string, toId: string, currentType: "positive" | "negative"): boolean => {
