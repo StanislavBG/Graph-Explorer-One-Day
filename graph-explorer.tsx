@@ -828,7 +828,7 @@ export default function GraphExplorer() {
     const clusterGroups = new Map<number, Set<string>>()
     let nextClusterId = 1
     
-    // First pass: create initial clusters based on positive edges only
+    // First pass: create initial clusters based on positive match scores only
     const initialClusters = new Map<string, number>()
     const initialClusterGroups = new Map<number, Set<string>>()
     let initialClusterId = 1
@@ -837,8 +837,8 @@ export default function GraphExplorer() {
       if (visited.has(startNodeId)) return visited
       visited.add(startNodeId)
       
-      const positiveEdges = edges.filter(e => 
-        e.type === 'positive' && 
+      const positiveEdges = unifiedEdges.filter(e => 
+        e.matchScore > 0.001 && 
         (e.from === startNodeId || e.to === startNodeId)
       )
       
@@ -882,10 +882,10 @@ export default function GraphExplorer() {
         for (const subcluster of validSubclusters) {
           let canAdd = true
           
-          // Check if this node has negative edges to any node in this subcluster
+          // Check if this node has negative match scores to any node in this subcluster
           for (const existingNodeId of subcluster) {
-            const hasNegativeEdge = edges.some(e => 
-              e.type === 'negative' && 
+            const hasNegativeEdge = unifiedEdges.some(e => 
+              e.matchScore < -0.001 && 
               ((e.from === nodeId && e.to === existingNodeId) || 
                (e.from === existingNodeId && e.to === nodeId))
             )
@@ -920,7 +920,7 @@ export default function GraphExplorer() {
     }
     
     return finalClusters
-  }, [nodeData, edges])
+  }, [nodeData, unifiedEdges])
   
   // Use the advanced clustering algorithm instead of the basic one
   const nodeClusters = advancedNodeClusters
