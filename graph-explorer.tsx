@@ -1794,7 +1794,9 @@ export default function GraphExplorer() {
               else if (isHovered) strokeWidth = 5
               else strokeWidth = 4
 
-              const pathData = drawStraightEdgeBetweenNodes(fromNode, toNode, renderEdgeType, nodeData, 30, false)
+              // Pass the actual stroke width to collision detection for more accurate results
+              const effectiveNodeRadius = isSelected ? Math.max(30, strokeWidth + 5) : 30
+              const pathData = drawStraightEdgeBetweenNodes(fromNode, toNode, renderEdgeType, nodeData, effectiveNodeRadius, false)
 
               return (
                 <path
