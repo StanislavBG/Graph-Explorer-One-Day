@@ -781,7 +781,9 @@ export default function GraphExplorer() {
       unified.hasBothTypes = unified.positiveFields.length > 0 && unified.negativeFields.length > 0
     })
     
-    return Array.from(edgeMap.values())
+    const result = Array.from(edgeMap.values())
+    console.log(`Unified edges created: ${result.length} edges`, result.map(e => `${e.from}->${e.to}:${e.matchScore}`))
+    return result
   }, [edges, nodeData]) // Also depend on nodeData to ensure updates when data changes
 
   // Helper function to check if a node pair has both positive and negative edges
@@ -1701,7 +1703,13 @@ export default function GraphExplorer() {
               const fromNode = getNodeByRecordId(unifiedEdge.from)
               const toNode = getNodeByRecordId(unifiedEdge.to)
 
-              if (!fromNode || !toNode) return null
+              if (!fromNode || !toNode) {
+                console.log(`Missing node for edge: ${unifiedEdge.from} -> ${unifiedEdge.to}`)
+                return null
+              }
+
+              // Debug: Log edge rendering
+              console.log(`Rendering edge: ${unifiedEdge.from} -> ${unifiedEdge.to}, Score: ${unifiedEdge.matchScore}, Type: ${unifiedEdge.matchScore > 0.001 ? 'positive' : 'negative'}, From: (${fromNode.x}, ${fromNode.y}), To: (${toNode.x}, ${toNode.y})`)
 
               // Edge rendering - purely visual, no evaluation logic interference
 
@@ -1715,6 +1723,9 @@ export default function GraphExplorer() {
                 rulesUsed: unifiedEdge.allRulesUsed,
                 matchScore: parseFloat((unifiedEdge.matchScore || 0).toFixed(3))
               }
+
+              // Ensure we always have a valid edge type for rendering
+              const renderEdgeType = unifiedEdge.matchScore > 0.001 ? "positive" : "negative"
 
               const isHovered = hoveredEdge && (hoveredEdge.from === unifiedEdge.from && hoveredEdge.to === unifiedEdge.to)
               const isSelected = selectedEdge && (selectedEdge.from === unifiedEdge.from && selectedEdge.to === unifiedEdge.to)
@@ -1758,7 +1769,7 @@ export default function GraphExplorer() {
               if (isSelected) strokeWidth = 6
               else if (isHovered || isConnectedToNode) strokeWidth = 4
 
-              const pathData = drawStraightEdgeBetweenNodes(fromNode, toNode, compositeEdge.type === "mixed" ? "positive" : compositeEdge.type, nodeData, 30, false)
+              const pathData = drawStraightEdgeBetweenNodes(fromNode, toNode, renderEdgeType, nodeData, 30, false)
 
               return (
                 <path
