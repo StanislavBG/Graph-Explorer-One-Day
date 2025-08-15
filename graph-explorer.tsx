@@ -566,11 +566,15 @@ export default function GraphExplorer() {
   }
 
   const handleEdgeHover = (edge: Edge) => {
+    console.log(`🟢 HOVER: Setting hoveredEdge to:`, edge)
+    console.log(`🟢 HOVER: Edge properties - from: "${edge.from}", to: "${edge.to}", type: "${edge.type}"`)
     setHoveredEdge(edge)
     setHoveredNode(null)
   }
 
   const handleEdgeClick = (edge: Edge) => {
+    console.log(`🔴 CLICK: Setting selectedEdge to:`, edge)
+    console.log(`🔴 CLICK: Edge properties - from: "${edge.from}", to: "${edge.to}", type: "${edge.type}"`)
     setSelectedEdge(edge)
     setSelectedNode(null)
   }
@@ -1730,9 +1734,20 @@ export default function GraphExplorer() {
               const isHovered = hoveredEdge && (hoveredEdge.from === unifiedEdge.from && hoveredEdge.to === unifiedEdge.to)
               const isSelected = selectedEdge && (selectedEdge.from === unifiedEdge.from && selectedEdge.to === unifiedEdge.to)
               
-              // Debug: Log edge state
+              // Debug: Log edge state and comparison details
               if (isHovered || isSelected) {
-                console.log(`Edge ${unifiedEdge.from}->${unifiedEdge.to}: Hovered=${isHovered}, Selected=${isSelected}`)
+                console.log(`🎯 Edge ${unifiedEdge.from}->${unifiedEdge.to}: Hovered=${isHovered}, Selected=${isSelected}`)
+              }
+              
+              // Debug: Log comparison details when there's a mismatch
+              if (hoveredEdge && !isHovered) {
+                console.log(`❌ HOVER MISMATCH: hoveredEdge.from="${hoveredEdge.from}" vs unifiedEdge.from="${unifiedEdge.from}"`)
+                console.log(`❌ HOVER MISMATCH: hoveredEdge.to="${hoveredEdge.to}" vs unifiedEdge.to="${unifiedEdge.to}"`)
+              }
+              
+              if (selectedEdge && !isSelected) {
+                console.log(`❌ SELECT MISMATCH: selectedEdge.from="${selectedEdge.from}" vs unifiedEdge.from="${unifiedEdge.from}"`)
+                console.log(`❌ SELECT MISMATCH: selectedEdge.to="${selectedEdge.to}" vs unifiedEdge.to="${unifiedEdge.to}"`)
               }
               const isConnectedToNode =
                 (hoveredNode || selectedNode) &&
