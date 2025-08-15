@@ -865,24 +865,55 @@ export default function GraphExplorer() {
       initialClusterId++
     }
     
-    // Second pass: split clusters that violate negative edge constraints
+    // Second pass: optimize cluster assignments based on cluster affinity scores
     const finalClusters = new Map<string, number>()
     const finalClusterGroups = new Map<number, Set<string>>()
     let finalClusterId = 1
     
+    // Calculate cluster affinity scores for each node
+    const calculateClusterAffinity = (nodeId: string, clusterNodes: Set<string>): number => {
+      let totalAffinity = 0
+      let connectionCount = 0
+      
+      for (const clusterNodeId of clusterNodes) {
+        if (nodeId === clusterNodeId) continue
+        
+        const edge = unifiedEdges.find(e => 
+          e.matchScore > 0.001 && 
+          ((e.from === nodeId && e.to === clusterNodeId) || 
+           (e.from === clusterNodeId && e.to === nodeId))
+        )
+        
+        if (edge) {
+          totalAffinity += edge.matchScore
+          connectionCount++
+        }
+      }
+      
+      // Return average affinity (normalized by connection count)
+      return connectionCount > 0 ? totalAffinity / connectionCount : 0
+    }
+    
+    // For each initial cluster, find optimal subcluster assignments
     for (const [clusterId, nodes] of initialClusterGroups) {
       const nodeArray = Array.from(nodes)
       const validSubclusters: Set<string>[] = []
       
-      // Use a greedy approach to find valid subclusters
-      for (const nodeId of nodeArray) {
-        let addedToExisting = false
+      // Start with the first node in its own subcluster
+      validSubclusters.push(new Set([nodeArray[0]]))
+      
+      // Assign remaining nodes to subclusters based on affinity
+      for (let i = 1; i < nodeArray.length; i++) {
+        const nodeId = nodeArray[i]
+        let bestClusterIndex = -1
+        let bestAffinity = -Infinity
         
-        // Try to add to existing valid subclusters
-        for (const subcluster of validSubclusters) {
-          let canAdd = true
+        // Find the subcluster with highest affinity for this node
+        for (let j = 0; j < validSubclusters.length; j++) {
+          const subcluster = validSubclusters[j]
           
-          // Check if this node has negative match scores to any node in this subcluster
+          // Check if this node has negative edges to any node in this subcluster
+          let hasNegativeConstraint = false
           for (const existingNodeId of subcluster) {
             const hasNegativeEdge = unifiedEdges.some(e => 
               e.matchScore < -0.001 && 
@@ -891,20 +922,24 @@ export default function GraphExplorer() {
             )
             
             if (hasNegativeEdge) {
-              canAdd = false
+              hasNegativeConstraint = true
               break
             }
           }
           
-          if (canAdd) {
-            subcluster.add(nodeId)
-            addedToExisting = true
-            break
+          if (!hasNegativeConstraint) {
+            const affinity = calculateClusterAffinity(nodeId, subcluster)
+            if (affinity > bestAffinity) {
+              bestAffinity = affinity
+              bestClusterIndex = j
+            }
           }
         }
         
-        // If couldn't add to existing subclusters, create a new one
-        if (!addedToExisting) {
+        // Add node to best subcluster or create new one if no good fit
+        if (bestClusterIndex >= 0 && bestAffinity > 0) {
+          validSubclusters[bestClusterIndex].add(nodeId)
+        } else {
           validSubclusters.push(new Set([nodeId]))
         }
       }
