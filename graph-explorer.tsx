@@ -105,11 +105,11 @@ const matchRules = [
     name: "Rule-14",
     fields: ["party", "phone"],
     children: [
-                      {
-                  name: "Rule-15",
-                  fields: ["phone"],
-                  children: [],
-                },
+      {
+        name: "Rule-15",
+        fields: ["phone"],
+        children: [],
+      },
     ],
   },
 ]
@@ -347,15 +347,15 @@ export default function GraphExplorer() {
   // Get the currently selected data set
   const currentData = useMemo(() => {
     return selectedDataExample === -1 
-      ? dynamicRecords.map(record => ({
-          "Record-Id": record.recordId,
-          "Salutation": record.salutation,
-          "First Name": record.firstName,
-          "Last Name": record.lastName,
-          "Email": record.email,
-          "Phone": record.phone,
-          "Party": record.party
-        }))
+    ? dynamicRecords.map(record => ({
+        "Record-Id": record.recordId,
+        "Salutation": record.salutation,
+        "First Name": record.firstName,
+        "Last Name": record.lastName,
+        "Email": record.email,
+        "Phone": record.phone,
+        "Party": record.party
+      }))
       : (editableData.length > 0 ? editableData.map(record => ({
           "Record-Id": record.recordId,
           "Salutation": record.salutation,
@@ -463,22 +463,38 @@ export default function GraphExplorer() {
             let matchScore = 0
             let positiveScore = 0
             let negativeScore = 0
+            let positiveRuleCount = 0
             
             for (const ruleResult of ruleResultsByPrecedence) {
               const ruleLevel = ruleResult.result.rulesUsed[0].length
-              const ruleWeight = Math.pow(0.75, ruleLevel - 1) // L1=1.0, L2=0.75, L3=0.56, L4=0.42, etc.
+              // Use correct scoring weights: L1=1.0, L2=0.75, L3=0.5, L4=0.25, L5=0.1
+              let ruleWeight: number
+              switch (ruleLevel) {
+                case 1: ruleWeight = 1.0; break
+                case 2: ruleWeight = 0.75; break
+                case 3: ruleWeight = 0.5; break
+                case 4: ruleWeight = 0.25; break
+                case 5: ruleWeight = 0.1; break
+                default: ruleWeight = 0.1; break
+              }
               
               if (ruleResult.status === 'positive') {
                 positiveScore += ruleWeight
+                positiveRuleCount++
               } else if (ruleResult.status === 'negative') {
                 negativeScore += ruleWeight
               }
             }
             
-            // Final match score: positive - negative (can be negative)
-            matchScore = positiveScore - negativeScore
+            // Apply multiplicative bonus for multiple positive rules
+            // 1.1x for 2+ rules, 1.2x for 3+ rules, 1.3x for 4+ rules, etc.
+            const multiplier = positiveRuleCount > 1 ? 1 + (positiveRuleCount - 1) * 0.1 : 1
+            const adjustedPositiveScore = positiveScore * multiplier
             
-            // Determine overall status based on OR logic across all rule chains
+            // Final match score: adjusted positive - negative (can be negative)
+            matchScore = adjustedPositiveScore - negativeScore
+            
+                                            // Determine overall status based on OR logic across all rule chains
                                 if (ruleResultsByPrecedence.length > 0) {
                                   // Check if ANY rule chain resulted in positive (OR logic)
                                   const hasPositiveResult = ruleResultsByPrecedence.some(r => r.status === 'positive')
@@ -519,9 +535,9 @@ export default function GraphExplorer() {
                                   }
                                 }
             
-            // Create edges based on match score instead of binary status
-            // Only create edges when there's a meaningful relationship (non-zero match score)
-            if (Math.abs(matchScore) > 0.001) { // Small threshold to avoid floating point precision issues
+            // Create edges whenever there are rule evaluations, even if score is 0
+            // This ensures all relationships are visible for exploration
+            if (ruleResultsByPrecedence.length > 0) {
               // Determine edge type based on match score
               let edgeType: "positive" | "negative" | "mixed"
               if (matchScore > 0.001) {
@@ -531,7 +547,9 @@ export default function GraphExplorer() {
                 edgeType = "negative"
                 console.log(`NEGATIVE EDGE: ${node1.recordId} <-> ${node2.recordId} (Score: ${matchScore.toFixed(3)}, Fields: ${nonMatchingFields.join(', ')})`)
               } else {
-                edgeType = "positive" // Default to positive for very small positive scores
+                // Score is 0 or very close to 0 - show as neutral edge
+                edgeType = "mixed"
+                console.log(`NEUTRAL EDGE: ${node1.recordId} <-> ${node2.recordId} (Score: ${matchScore.toFixed(3)}, Fields: ${matchingFields.join(', ')})`)
               }
               
               edgeMap.set(
@@ -773,31 +791,71 @@ export default function GraphExplorer() {
   const unifiedEdges = useMemo(() => {
     const edgeMap = new Map<string, any>()
     
-    // Group edges by node pairs
+    // Group edges by node pairs and recalculate scores with multiplicative bonus
     edges.forEach((edge) => {
       const key = [edge.from, edge.to].sort().join('-')
       
       if (!edgeMap.has(key)) {
+        // Recalculate the actual score with multiplicative bonus for this node pair
+        const node1 = nodeData.find(n => n.recordId === edge.from)
+        const node2 = nodeData.find(n => n.recordId === edge.to)
+        
+        let actualScore = 0
+        let positiveFields: string[] = []
+        let negativeFields: string[] = []
+        let allRulesUsed: string[][] = []
+        
+        if (node1 && node2) {
+          // Evaluate all rules to get current score
+          let allResults: RuleEvalResult[] = []
+          for (const rule of matchRules) {
+            allResults = allResults.concat(evaluateRuleAll(rule, node1, node2))
+          }
+          
+          // Calculate current score with multiplicative bonus
+          let positiveScore = 0
+          let negativeScore = 0
+          let positiveRuleCount = 0
+          
+          allResults.forEach(result => {
+            if (result.status === 'positive' || result.status === 'negative') {
+              const ruleLevel = result.rulesUsed[0].length
+              let ruleWeight: number
+              switch (ruleLevel) {
+                case 1: ruleWeight = 1.0; break
+                case 2: ruleWeight = 0.75; break
+                case 3: ruleWeight = 0.5; break
+                case 4: ruleWeight = 0.25; break
+                case 5: ruleWeight = 0.1; break
+                default: ruleWeight = 0.1; break
+              }
+              
+              if (result.status === 'positive') {
+                positiveScore += ruleWeight
+                positiveRuleCount++
+                positiveFields.push(...result.matchingFields)
+              } else {
+                negativeScore += ruleWeight
+                negativeFields.push(...result.nonMatchingFields)
+              }
+              allRulesUsed.push(...result.rulesUsed)
+            }
+          })
+          
+          const multiplier = positiveRuleCount > 1 ? 1 + (positiveRuleCount - 1) * 0.1 : 1
+          const adjustedPositiveScore = positiveScore * multiplier
+          actualScore = adjustedPositiveScore - negativeScore
+        }
+        
         edgeMap.set(key, {
           from: edge.from,
           to: edge.to,
-          positiveFields: [],
-          negativeFields: [],
-          allRulesUsed: [],
+          positiveFields: positiveFields,
+          negativeFields: negativeFields,
+          allRulesUsed: allRulesUsed,
           hasBothTypes: false,
-          matchScore: 0
+          matchScore: actualScore
         })
-      }
-      
-      const unified = edgeMap.get(key)
-      if (edge.type === "positive") {
-        unified.positiveFields.push(...edge.matchingFields)
-        unified.allRulesUsed.push(...edge.rulesUsed)
-        unified.matchScore += edge.matchScore || 0
-      } else {
-        unified.negativeFields.push(...edge.nonMatchingFields)
-        unified.allRulesUsed.push(...edge.rulesUsed)
-        unified.matchScore += edge.matchScore || 0 // Keep the sign, don't use absolute value
       }
     })
     
@@ -808,7 +866,7 @@ export default function GraphExplorer() {
     
     const result = Array.from(edgeMap.values())
     return result
-  }, [edges, nodeData]) // Also depend on nodeData to ensure updates when data changes
+  }, [edges, nodeData, matchRules]) // Depend on edges, nodeData, and matchRules
 
   // Helper function to check if a node pair has both positive and negative edges
   const hasCounterpartEdge = (fromId: string, toId: string, currentType: "positive" | "negative"): boolean => {
@@ -837,15 +895,65 @@ export default function GraphExplorer() {
       if (visited.has(startNodeId)) return visited
       visited.add(startNodeId)
       
-      const positiveEdges = unifiedEdges.filter(e => 
-        e.matchScore > 0.001 && 
-        (e.from === startNodeId || e.to === startNodeId)
-      )
+      // Find all nodes and calculate current scores with multiplicative bonus
+      const node1 = nodeData.find(n => n.recordId === startNodeId)
+      if (!node1) return visited
       
-      for (const edge of positiveEdges) {
-        const nextNodeId = edge.from === startNodeId ? edge.to : edge.from
-        if (!visited.has(nextNodeId)) {
-          findInitialConnectedComponent(nextNodeId, visited)
+      // Calculate scores to all other nodes and sort by strength
+      const nodeScores: Array<{nodeId: string, score: number}> = []
+      
+      for (const node2 of nodeData) {
+        if (node2.recordId === startNodeId) continue
+        
+        // Evaluate all rules to get current score
+        let allResults: RuleEvalResult[] = []
+        for (const rule of matchRules) {
+          allResults = allResults.concat(evaluateRuleAll(rule, node1, node2))
+        }
+        
+        // Calculate current score with multiplicative bonus
+        let positiveScore = 0
+        let negativeScore = 0
+        let positiveRuleCount = 0
+        
+        allResults.forEach(result => {
+          if (result.status === 'positive' || result.status === 'negative') {
+            const ruleLevel = result.rulesUsed[0].length
+            let ruleWeight: number
+            switch (ruleLevel) {
+              case 1: ruleWeight = 1.0; break
+              case 2: ruleWeight = 0.75; break
+              case 3: ruleWeight = 0.5; break
+              case 4: ruleWeight = 0.25; break
+              case 5: ruleWeight = 0.1; break
+              default: ruleWeight = 0.1; break
+            }
+            
+            if (result.status === 'positive') {
+              positiveScore += ruleWeight
+              positiveRuleCount++
+            } else {
+              negativeScore += ruleWeight
+            }
+          }
+        })
+        
+        const multiplier = positiveRuleCount > 1 ? 1 + (positiveRuleCount - 1) * 0.1 : 1
+        const adjustedPositiveScore = positiveScore * multiplier
+        const currentScore = adjustedPositiveScore - negativeScore
+        
+        if (currentScore > 0.001) {
+          nodeScores.push({nodeId: node2.recordId, score: currentScore})
+        }
+      }
+      
+      // Sort by score strength (highest first)
+      nodeScores.sort((a, b) => b.score - a.score)
+      
+      // Recursively add strongly connected nodes
+      for (const {nodeId, score} of nodeScores) {
+        if (!visited.has(nodeId)) {
+          findInitialConnectedComponent(nodeId, visited)
         }
       }
       
@@ -873,25 +981,59 @@ export default function GraphExplorer() {
     // Calculate cluster affinity scores for each node
     const calculateClusterAffinity = (nodeId: string, clusterNodes: Set<string>): number => {
       let totalAffinity = 0
-      let connectionCount = 0
       
       for (const clusterNodeId of clusterNodes) {
         if (nodeId === clusterNodeId) continue
         
-        const edge = unifiedEdges.find(e => 
-          e.matchScore > 0.001 && 
-          ((e.from === nodeId && e.to === clusterNodeId) || 
-           (e.from === clusterNodeId && e.to === nodeId))
-        )
+        // Recalculate the match score with current multiplicative bonus logic
+        const node1 = nodeData.find(n => n.recordId === nodeId)
+        const node2 = nodeData.find(n => n.recordId === clusterNodeId)
+        if (!node1 || !node2) continue
         
-        if (edge) {
-          totalAffinity += edge.matchScore
-          connectionCount++
+        // Evaluate all rules to get current score
+        let allResults: RuleEvalResult[] = []
+        for (const rule of matchRules) {
+          allResults = allResults.concat(evaluateRuleAll(rule, node1, node2))
+        }
+        
+        // Calculate current score with multiplicative bonus
+        let positiveScore = 0
+        let negativeScore = 0
+        let positiveRuleCount = 0
+        
+        allResults.forEach(result => {
+          if (result.status === 'positive' || result.status === 'negative') {
+            const ruleLevel = result.rulesUsed[0].length
+            let ruleWeight: number
+            switch (ruleLevel) {
+              case 1: ruleWeight = 1.0; break
+              case 2: ruleWeight = 0.75; break
+              case 3: ruleWeight = 0.5; break
+              case 4: ruleWeight = 0.25; break
+              case 5: ruleWeight = 0.1; break
+              default: ruleWeight = 0.1; break
+            }
+            
+            if (result.status === 'positive') {
+              positiveScore += ruleWeight
+              positiveRuleCount++
+            } else {
+              negativeScore += ruleWeight
+            }
+          }
+        })
+        
+        const multiplier = positiveRuleCount > 1 ? 1 + (positiveRuleCount - 1) * 0.1 : 1
+        const adjustedPositiveScore = positiveScore * multiplier
+        const currentScore = adjustedPositiveScore - negativeScore
+        
+        // Only add positive scores to affinity (negative scores would reduce clustering)
+        if (currentScore > 0.001) {
+          totalAffinity += currentScore
         }
       }
       
-      // Return average affinity (normalized by connection count)
-      return connectionCount > 0 ? totalAffinity / connectionCount : 0
+      return totalAffinity
     }
     
     // For each initial cluster, find optimal subcluster assignments
@@ -1818,7 +1960,7 @@ export default function GraphExplorer() {
                 // Negative relationship - red dashed line
                 strokeColor = "#ef4444" // red
                 strokeDasharray = "5,5"
-              } else {
+                } else {
                 // Neutral/zero score - render as neutral edge (not invisible)
                 strokeColor = "#6b7280" // gray
                 strokeDasharray = "3,3"
@@ -1936,21 +2078,19 @@ export default function GraphExplorer() {
               {selectedDataExample !== -1 && (
                 <span className="ml-2">💡 Editable inline</span>
               )}
-              {selectedDataExample === 5 && (
-                <span className="ml-2 text-yellow-600">⚠️ R2 has email typo for testing</span>
-              )}
+
             </div>
           </div>
 
           {/* Compact Add Record Buttons */}
           <div className="mt-1 p-1.5 bg-blue-50 border border-blue-200 rounded text-xs">
-            <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between">
               <span className="text-blue-800">
                 💡 <strong>Add rows:</strong> 
                 {selectedDataExample === -1 ? " Custom data" : " Expand example"}
               </span>
               <div className="flex gap-1">
-                <button
+                  <button
                   onClick={selectedDataExample === -1 ? addFullRecord : addFullRecordToExample}
                   className="px-2 py-0.5 text-xs bg-green-500 hover:bg-green-600 text-white rounded transition-colors"
                   title={selectedDataExample === -1 
@@ -1959,8 +2099,8 @@ export default function GraphExplorer() {
                   }
                 >
                   +Full
-                </button>
-                <button
+                  </button>
+                  <button
                   onClick={selectedDataExample === -1 ? addPartialRecord : addPartialRecordToExample}
                   className="px-2 py-0.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
                   title={selectedDataExample === -1 
@@ -1979,10 +2119,10 @@ export default function GraphExplorer() {
                   }
                 >
                   +Empty
-                </button>
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
           
           <table className="min-w-full text-[10px] text-left">
             <thead className="bg-gray-100">
@@ -2021,7 +2161,7 @@ export default function GraphExplorer() {
                                 ×
                               </button>
                             ) : null}
-                          </td>
+                            </td>
                           <td className="px-1 py-0.5 border font-mono bg-gray-100 text-gray-600">{node.recordId}</td>
                           <td className="px-1 py-0.5 border font-mono bg-gray-100 text-gray-600">{node.uuid || "—"}</td>
                           <td className="px-1 py-0.5 border">
@@ -2387,19 +2527,66 @@ export default function GraphExplorer() {
                     <span className="text-xs font-medium text-blue-800">Match Score:</span>
                     {(() => {
                       const edge = selectedEdge || hoveredEdge
-                      const score = edge?.matchScore || 0
-                      const isPositive = score > 0
-                      const isNegative = score < 0
+                      if (!edge) return <span className="text-sm font-bold px-2 py-1 rounded bg-gray-100 text-gray-600">0.000</span>
+                      
+                      // Re-evaluate to get the current score with multiplicative bonus
+                      const node1 = getNodeByRecordId(edge.from)
+                      const node2 = getNodeByRecordId(edge.to)
+                      if (!node1 || !node2) return <span className="text-sm font-bold px-2 py-1 rounded bg-gray-100 text-gray-600">0.000</span>
+                      
+                      let allResults: RuleEvalResult[] = []
+                      for (const rule of matchRules) {
+                        allResults = allResults.concat(evaluateRuleAll(rule, node1, node2))
+                      }
+                      
+                      // Calculate current score with multiplicative bonus
+                      let positiveScore = 0
+                      let negativeScore = 0
+                      let positiveRuleCount = 0
+                      
+                      allResults.forEach(result => {
+                        if (result.status === 'positive' || result.status === 'negative') {
+                          const ruleLevel = result.rulesUsed[0].length
+                          let ruleWeight: number
+                          switch (ruleLevel) {
+                            case 1: ruleWeight = 1.0; break
+                            case 2: ruleWeight = 0.75; break
+                            case 3: ruleWeight = 0.5; break
+                            case 4: ruleWeight = 0.25; break
+                            case 5: ruleWeight = 0.1; break
+                            default: ruleWeight = 0.1; break
+                          }
+                          
+                          if (result.status === 'positive') {
+                            positiveScore += ruleWeight
+                            positiveRuleCount++
+                          } else {
+                            negativeScore += ruleWeight
+                          }
+                        }
+                      })
+                      
+                      const multiplier = positiveRuleCount > 1 ? 1 + (positiveRuleCount - 1) * 0.1 : 1
+                      const adjustedPositiveScore = positiveScore * multiplier
+                      const currentScore = adjustedPositiveScore - negativeScore
+                      
+                      const isPositive = currentScore > 0
+                      const isNegative = currentScore < 0
                       const bgClass = isPositive ? 'bg-green-100 text-green-700' : isNegative ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                      
                       return (
                         <span className={`text-sm font-bold px-2 py-1 rounded ${bgClass}`}>
-                          {score.toFixed(3)}
+                          {currentScore.toFixed(3)}
                         </span>
                       )
                     })()}
                   </div>
                   <div className="text-xs text-blue-600 mt-1">
-                    <strong>Formula:</strong> L1 rules × 1.0 + L2 rules × 0.75 + L3 rules × 0.56 + ...
+                    <strong>Formula:</strong> L1 rules × 1.0 + L2 rules × 0.75 + L3 rules × 0.5 + L4 rules × 0.25 + L5 rules × 0.1
+                  </div>
+                  <div className="text-xs text-orange-600 mt-1 flex items-center gap-1">
+                    <span className="font-bold">(!)</span>
+                    <span><strong>Multiplicative Bonus:</strong> Multiple positive rules get 10% bonus per additional rule (1.1x for 2 rules, 1.2x for 3 rules, etc.)</span>
                   </div>
                 </div>
               </CardHeader>
@@ -2417,38 +2604,141 @@ export default function GraphExplorer() {
                     for (const rule of matchRules) {
                       allResults = allResults.concat(evaluateRuleAll(rule, node1, node2))
                     }
-                    return allResults.map((result, idx) => (
-                      <div key={result.rulesUsed[0].join('-') + '-' + idx} className="flex flex-row items-center space-x-1">
-                        {result.rulesUsed[0].map((rule: string, i: number) => {
-                          // Consistent path styling: all segments gray for unknown, else only last colored
-                          const isLast = i === result.rulesUsed[0].length - 1
-                          let className = 'px-1.5 py-0.5 rounded font-semibold'
-                          if (result.status === 'unknown') {
-                            className += ' bg-gray-200 text-gray-500'
-                          } else if (isLast) {
-                            className += result.status === 'positive'
-                              ? ' bg-green-100 text-green-700'
-                              : ' bg-red-100 text-red-700'
-                          } else {
-                            className += ' bg-gray-100 text-gray-600'
-                          }
-                          return (
-                            <React.Fragment key={rule + '-' + i}>
-                              <span
-                                className={className}
-                                style={{ minWidth: 44, textAlign: 'center', display: 'inline-block' }}
-                                title={`Rule: ${rule} - compares ${getRuleFields(rule).join(', ')}`}
-                              >
-                                {rule}
-                              </span>
-                              {i < result.rulesUsed[0].length - 1 && (
-                                <span className="text-gray-400 text-[12px] font-bold mx-0.5" style={{ verticalAlign: 'middle' }}>→</span>
-                              )}
-                            </React.Fragment>
-                          )
-                        })}
-                      </div>
-                    ))
+                    
+                    // Calculate detailed scoring for display
+                    let positiveScore = 0
+                    let negativeScore = 0
+                    let positiveRuleCount = 0
+                    let positiveRules: Array<{rule: string, level: number, weight: number}> = []
+                    let negativeRules: Array<{rule: string, level: number, weight: number}> = []
+                    
+                    allResults.forEach(result => {
+                      if (result.status === 'positive' || result.status === 'negative') {
+                        const ruleLevel = result.rulesUsed[0].length
+                        let ruleWeight: number
+                        switch (ruleLevel) {
+                          case 1: ruleWeight = 1.0; break
+                          case 2: ruleWeight = 0.75; break
+                          case 3: ruleWeight = 0.5; break
+                          case 4: ruleWeight = 0.25; break
+                          case 5: ruleWeight = 0.1; break
+                          default: ruleWeight = 0.1; break
+                        }
+                        
+                        if (result.status === 'positive') {
+                          positiveScore += ruleWeight
+                          positiveRuleCount++
+                          positiveRules.push({
+                            rule: result.rulesUsed[0].join(' → '),
+                            level: ruleLevel,
+                            weight: ruleWeight
+                          })
+                        } else {
+                          negativeScore += ruleWeight
+                          negativeRules.push({
+                            rule: result.rulesUsed[0].join(' → '),
+                            level: ruleLevel,
+                            weight: ruleWeight
+                          })
+                        }
+                      }
+                    })
+                    
+                    const multiplier = positiveRuleCount > 1 ? 1 + (positiveRuleCount - 1) * 0.1 : 1
+                    const adjustedPositiveScore = positiveScore * multiplier
+                    const finalScore = adjustedPositiveScore - negativeScore
+                    
+                    return (
+                      <>
+                        {/* Scoring Breakdown */}
+                        <div className="mb-2 p-2 bg-gray-50 border border-gray-200 rounded">
+                          <div className="text-xs font-semibold text-gray-700 mb-1">Scoring Breakdown:</div>
+                          
+                          {/* Positive Rules */}
+                          {positiveRules.length > 0 && (
+                            <div className="mb-1">
+                              <div className="text-xs text-green-700 font-medium">Positive Rules:</div>
+                              {positiveRules.map((rule, idx) => (
+                                <div key={idx} className="text-xs text-green-600 ml-2">
+                                  {rule.rule}: L{rule.level} × {rule.weight} = {rule.weight.toFixed(2)}
+                                </div>
+                              ))}
+                              <div className="text-xs text-green-700 font-medium ml-2">
+                                Subtotal: {positiveScore.toFixed(3)}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Multiplicative Bonus */}
+                          {positiveRuleCount > 1 && (
+                            <div className="mb-1">
+                              <div className="text-xs text-orange-700 font-medium">Multiplicative Bonus:</div>
+                              <div className="text-xs text-orange-600 ml-2">
+                                {positiveRuleCount} rules × 10% bonus = {(multiplier - 1) * 100}% → {multiplier.toFixed(1)}x
+                              </div>
+                              <div className="text-xs text-orange-700 font-medium ml-2">
+                                Adjusted: {positiveScore.toFixed(3)} × {multiplier.toFixed(1)} = {adjustedPositiveScore.toFixed(3)}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Negative Rules */}
+                          {negativeRules.length > 0 && (
+                            <div className="mb-1">
+                              <div className="text-xs text-red-700 font-medium">Negative Rules:</div>
+                              {negativeRules.map((rule, idx) => (
+                                <div key={idx} className="text-xs text-red-600 ml-2">
+                                  {rule.rule}: L{rule.level} × {rule.weight} = {rule.weight.toFixed(2)}
+                                </div>
+                              ))}
+                              <div className="text-xs text-red-700 font-medium ml-2">
+                                Subtotal: {negativeScore.toFixed(3)}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Final Calculation */}
+                          <div className="text-xs font-semibold text-gray-700 mt-1 pt-1 border-t border-gray-300">
+                            Final Score: {adjustedPositiveScore.toFixed(3)} - {negativeScore.toFixed(3)} = {finalScore.toFixed(3)}
+                          </div>
+                        </div>
+                        
+                        {/* Rule Paths */}
+                        <div className="text-xs font-semibold text-gray-700 mb-1">Rule Paths:</div>
+                        {allResults.map((result, idx) => (
+                          <div key={result.rulesUsed[0].join('-') + '-' + idx} className="flex flex-row items-center space-x-1">
+                            {result.rulesUsed[0].map((rule: string, i: number) => {
+                              // Consistent path styling: all segments gray for unknown, else only last colored
+                              const isLast = i === result.rulesUsed[0].length - 1
+                              let className = 'px-1.5 py-0.5 rounded font-semibold'
+                              if (result.status === 'unknown') {
+                                className += ' bg-gray-200 text-gray-500'
+                              } else if (isLast) {
+                                className += result.status === 'positive'
+                                  ? ' bg-green-100 text-green-700'
+                                  : ' bg-red-100 text-red-700'
+                              } else {
+                                className += ' bg-gray-100 text-gray-600'
+                              }
+                              return (
+                                <React.Fragment key={rule + '-' + i}>
+                                  <span
+                                    className={className}
+                                    style={{ minWidth: 44, textAlign: 'center', display: 'inline-block' }}
+                                    title={`Rule: ${rule} - compares ${getRuleFields(rule).join(', ')}`}
+                                  >
+                                    {rule}
+                                  </span>
+                                  {i < result.rulesUsed[0].length - 1 && (
+                                    <span className="text-gray-400 text-[12px] font-bold mx-0.5" style={{ verticalAlign: 'middle' }}>→</span>
+                                  )}
+                                </React.Fragment>
+                              )
+                            })}
+                          </div>
+                        ))}
+                      </>
+                    )
                   })()}
                 </div>
               </CardContent>
