@@ -328,6 +328,12 @@ export default function GraphExplorer() {
     } else {
       setEditableData([])
     }
+    
+    // Clear edge states when switching examples to prevent data mismatch
+    setSelectedEdge(null)
+    setHoveredEdge(null)
+    setSelectedNode(null)
+    setHoveredNode(null)
   }, [selectedDataExample])
 
   // Calculate center and radius dynamically for the graph area only
@@ -566,15 +572,11 @@ export default function GraphExplorer() {
   }
 
   const handleEdgeHover = (edge: Edge) => {
-    console.log(`🟢 HOVER: Setting hoveredEdge to:`, edge)
-    console.log(`🟢 HOVER: Edge properties - from: "${edge.from}", to: "${edge.to}", type: "${edge.type}"`)
     setHoveredEdge(edge)
     setHoveredNode(null)
   }
 
   const handleEdgeClick = (edge: Edge) => {
-    console.log(`🔴 CLICK: Setting selectedEdge to:`, edge)
-    console.log(`🔴 CLICK: Edge properties - from: "${edge.from}", to: "${edge.to}", type: "${edge.type}"`)
     setSelectedEdge(edge)
     setSelectedNode(null)
   }
@@ -786,7 +788,6 @@ export default function GraphExplorer() {
     })
     
     const result = Array.from(edgeMap.values())
-    console.log(`Unified edges created: ${result.length} edges`, result.map(e => `${e.from}->${e.to}:${e.matchScore}`))
     return result
   }, [edges, nodeData]) // Also depend on nodeData to ensure updates when data changes
 
@@ -1712,8 +1713,7 @@ export default function GraphExplorer() {
                 return null
               }
 
-              // Debug: Log edge rendering
-              console.log(`Rendering edge: ${unifiedEdge.from} -> ${unifiedEdge.to}, Score: ${unifiedEdge.matchScore}, Type: ${unifiedEdge.matchScore > 0.001 ? 'positive' : 'negative'}, From: (${fromNode.x}, ${fromNode.y}), To: (${toNode.x}, ${toNode.y})`)
+
 
               // Edge rendering - purely visual, no evaluation logic interference
 
@@ -1734,21 +1734,7 @@ export default function GraphExplorer() {
               const isHovered = hoveredEdge && (hoveredEdge.from === unifiedEdge.from && hoveredEdge.to === unifiedEdge.to)
               const isSelected = selectedEdge && (selectedEdge.from === unifiedEdge.from && selectedEdge.to === unifiedEdge.to)
               
-              // Debug: Log edge state and comparison details
-              if (isHovered || isSelected) {
-                console.log(`🎯 Edge ${unifiedEdge.from}->${unifiedEdge.to}: Hovered=${isHovered}, Selected=${isSelected}`)
-              }
-              
-              // Debug: Log comparison details when there's a mismatch
-              if (hoveredEdge && !isHovered) {
-                console.log(`❌ HOVER MISMATCH: hoveredEdge.from="${hoveredEdge.from}" vs unifiedEdge.from="${unifiedEdge.from}"`)
-                console.log(`❌ HOVER MISMATCH: hoveredEdge.to="${hoveredEdge.to}" vs unifiedEdge.to="${unifiedEdge.to}"`)
-              }
-              
-              if (selectedEdge && !isSelected) {
-                console.log(`❌ SELECT MISMATCH: selectedEdge.from="${selectedEdge.from}" vs unifiedEdge.from="${unifiedEdge.from}"`)
-                console.log(`❌ SELECT MISMATCH: selectedEdge.to="${selectedEdge.to}" vs unifiedEdge.to="${unifiedEdge.to}"`)
-              }
+
               const isConnectedToNode =
                 (hoveredNode || selectedNode) &&
                 (unifiedEdge.from === (hoveredNode || selectedNode)?.recordId || unifiedEdge.to === (hoveredNode || selectedNode)?.recordId)
@@ -1856,7 +1842,15 @@ export default function GraphExplorer() {
               <label className="text-xs font-medium text-gray-700">Example:</label>
               <select
                 value={selectedDataExample}
-                onChange={(e) => setSelectedDataExample(Number(e.target.value))}
+                onChange={(e) => {
+                  const newExample = Number(e.target.value)
+                  setSelectedDataExample(newExample)
+                  // Clear edge states when switching examples to prevent data mismatch
+                  setSelectedEdge(null)
+                  setHoveredEdge(null)
+                  setSelectedNode(null)
+                  setHoveredNode(null)
+                }}
                 className="px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value={-1} className="font-semibold text-blue-600">🆕 NEW - Custom Data</option>
