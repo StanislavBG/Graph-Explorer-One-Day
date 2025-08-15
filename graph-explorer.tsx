@@ -770,7 +770,7 @@ export default function GraphExplorer() {
       } else {
         unified.negativeFields.push(...edge.nonMatchingFields)
         unified.allRulesUsed.push(...edge.rulesUsed)
-        unified.matchScore -= Math.abs(edge.matchScore || 0)
+        unified.matchScore += edge.matchScore || 0 // Keep the sign, don't use absolute value
       }
     })
     
@@ -1701,6 +1701,9 @@ export default function GraphExplorer() {
 
               if (!fromNode || !toNode) return null
 
+              // Debug logging for edge rendering
+              console.log(`Rendering edge: ${unifiedEdge.from} -> ${unifiedEdge.to}, Score: ${unifiedEdge.matchScore}, Type: ${unifiedEdge.matchScore > 0.001 ? 'positive' : 'negative'}`)
+
               // Create a composite edge that represents the complete relationship
               const compositeEdge: Edge = {
                 from: unifiedEdge.from,
@@ -1732,7 +1735,7 @@ export default function GraphExplorer() {
               // Determine edge styling based on match score
               let strokeColor = "#10b981" // default green for positive
               let strokeDasharray = "none"
-              let strokeWidth = 2
+              let strokeWidth = 4 // Increased from 2 to make edges easier to click
 
               // Use match score to determine edge color and style
               if (unifiedEdge.matchScore > 0.001) {
