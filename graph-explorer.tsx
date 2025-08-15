@@ -779,7 +779,6 @@ export default function GraphExplorer() {
     // Mark edges that have both positive and negative aspects
     edgeMap.forEach((unified) => {
       unified.hasBothTypes = unified.positiveFields.length > 0 && unified.negativeFields.length > 0
-      console.log(`Unified edge: ${unified.from} -> ${unified.to}, Score: ${unified.matchScore}, Pos: ${unified.positiveFields.length}, Neg: ${unified.negativeFields.length}`)
     })
     
     return Array.from(edgeMap.values())
@@ -1704,8 +1703,7 @@ export default function GraphExplorer() {
 
               if (!fromNode || !toNode) return null
 
-              // Debug logging for edge rendering
-              console.log(`Rendering edge: ${unifiedEdge.from} -> ${unifiedEdge.to}, Score: ${unifiedEdge.matchScore}, Type: ${unifiedEdge.matchScore > 0.001 ? 'positive' : unifiedEdge.matchScore < -0.001 ? 'negative' : 'neutral'}`)
+              // Edge rendering - purely visual, no evaluation logic interference
 
               // Create a composite edge that represents the complete relationship
               const compositeEdge: Edge = {
@@ -1741,6 +1739,7 @@ export default function GraphExplorer() {
               let strokeWidth = 4 // Increased from 2 to make edges easier to click
 
               // Use match score to determine edge color and style
+              // Rendering should never be affected by evaluation logic
               if (unifiedEdge.matchScore > 0.001) {
                 // Positive relationship - green solid line
                 strokeColor = "#10b981" // green
@@ -1750,8 +1749,9 @@ export default function GraphExplorer() {
                 strokeColor = "#ef4444" // red
                 strokeDasharray = "5,5"
               } else {
-                // Neutral/zero score - don't render this edge
-                return null
+                // Neutral/zero score - render as neutral edge (not invisible)
+                strokeColor = "#6b7280" // gray
+                strokeDasharray = "3,3"
               }
 
               // Adjust stroke width for hover/selection states
