@@ -777,6 +777,7 @@ export default function GraphExplorer() {
     // Mark edges that have both positive and negative aspects
     edgeMap.forEach((unified) => {
       unified.hasBothTypes = unified.positiveFields.length > 0 && unified.negativeFields.length > 0
+      console.log(`Unified edge: ${unified.from} -> ${unified.to}, Score: ${unified.matchScore}, Pos: ${unified.positiveFields.length}, Neg: ${unified.negativeFields.length}`)
     })
     
     return Array.from(edgeMap.values())
@@ -1702,7 +1703,7 @@ export default function GraphExplorer() {
               if (!fromNode || !toNode) return null
 
               // Debug logging for edge rendering
-              console.log(`Rendering edge: ${unifiedEdge.from} -> ${unifiedEdge.to}, Score: ${unifiedEdge.matchScore}, Type: ${unifiedEdge.matchScore > 0.001 ? 'positive' : 'negative'}`)
+              console.log(`Rendering edge: ${unifiedEdge.from} -> ${unifiedEdge.to}, Score: ${unifiedEdge.matchScore}, Type: ${unifiedEdge.matchScore > 0.001 ? 'positive' : unifiedEdge.matchScore < -0.001 ? 'negative' : 'neutral'}`)
 
               // Create a composite edge that represents the complete relationship
               const compositeEdge: Edge = {
