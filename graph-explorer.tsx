@@ -666,6 +666,15 @@ export default function GraphExplorer() {
     const distance = Math.sqrt(dx * dx + dy * dy)
     const unitX = dx / distance
     const unitY = dy / distance
+    
+    // Debug: Check if this is a vertical or horizontal edge
+    const isVertical = Math.abs(dx) < 0.001
+    const isHorizontal = Math.abs(dy) < 0.001
+    if (isVertical || isHorizontal) {
+      console.log(`🔍 ${isVertical ? 'VERTICAL' : 'HORIZONTAL'} EDGE: ${fromNode.recordId} -> ${toNode.recordId}`)
+      console.log(`   From: (${fromNode.x}, ${fromNode.y}), To: (${toNode.x}, ${toNode.y})`)
+      console.log(`   Distance: ${distance}, Unit: (${unitX}, ${unitY})`)
+    }
 
     // Base connection points at node perimeters
     const baseStartX = fromNode.x + unitX * nodeRadius
@@ -701,6 +710,9 @@ export default function GraphExplorer() {
         lineIntersectsCircle({ x: startX, y: startY }, { x: endX, y: endY }, { x: node.x, y: node.y }, nodeRadius + 5)
       ) {
         collisionDetected = true
+        if (isVertical || isHorizontal) {
+          console.log(`   ❌ COLLISION with node ${node.recordId} at (${node.x}, ${node.y})`)
+        }
         break
       }
     }
@@ -747,7 +759,14 @@ export default function GraphExplorer() {
     const roundedEndX = Math.round(endX * 100) / 100
     const roundedEndY = Math.round(endY * 100) / 100
     
-    return `M ${roundedStartX} ${roundedStartY} L ${roundedEndX} ${roundedEndY}`
+    const path = `M ${roundedStartX} ${roundedStartY} L ${roundedEndX} ${roundedEndY}`
+    
+    if (isVertical || isHorizontal) {
+      console.log(`   ✅ FINAL PATH: ${path}`)
+      console.log(`   📍 Start: (${roundedStartX}, ${roundedStartY}), End: (${roundedEndX}, ${roundedEndY})`)
+    }
+    
+    return path
   }
 
   // Create unified edges that combine positive and negative relationships
