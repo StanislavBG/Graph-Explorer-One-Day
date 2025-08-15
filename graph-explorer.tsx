@@ -1729,17 +1729,21 @@ export default function GraphExplorer() {
 
               const isHovered = hoveredEdge && (hoveredEdge.from === unifiedEdge.from && hoveredEdge.to === unifiedEdge.to)
               const isSelected = selectedEdge && (selectedEdge.from === unifiedEdge.from && selectedEdge.to === unifiedEdge.to)
+              
+              // Debug: Log edge state
+              if (isHovered || isSelected) {
+                console.log(`Edge ${unifiedEdge.from}->${unifiedEdge.to}: Hovered=${isHovered}, Selected=${isSelected}`)
+              }
               const isConnectedToNode =
                 (hoveredNode || selectedNode) &&
                 (unifiedEdge.from === (hoveredNode || selectedNode)?.recordId || unifiedEdge.to === (hoveredNode || selectedNode)?.recordId)
 
+              // Simplified opacity logic - ensure edges are always visible
               let edgeOpacity = 1
-              if (isHovered || isSelected || isConnectedToNode) {
+              if (isHovered || isSelected) {
                 edgeOpacity = 1
-              } else if (selectedEdge) {
-                edgeOpacity = 0.1
-              } else if (hoveredNode || selectedNode) {
-                edgeOpacity = 0.15
+              } else if (isConnectedToNode) {
+                edgeOpacity = 0.8
               } else {
                 edgeOpacity = 0.7
               }
@@ -1765,9 +1769,10 @@ export default function GraphExplorer() {
                 strokeDasharray = "3,3"
               }
 
-              // Adjust stroke width for hover/selection states
+              // Ensure edges are always clickable with sufficient stroke width
               if (isSelected) strokeWidth = 6
-              else if (isHovered || isConnectedToNode) strokeWidth = 4
+              else if (isHovered) strokeWidth = 5
+              else strokeWidth = 4
 
               const pathData = drawStraightEdgeBetweenNodes(fromNode, toNode, renderEdgeType, nodeData, 30, false)
 
