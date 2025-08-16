@@ -33,13 +33,28 @@ export function evaluateSingleRule(rule: MatchRule, node1: NodeData, node2: Node
   
   // Determine result based on field status
   if (missing.length > 0) {
-    // Any field missing → NEUTRAL
-    return { 
-      status: "neutral", 
-      matchingFields, 
-      nonMatchingFields, 
-      missingFields: missing,
-      rulesUsed: [[rule.name]]
+    // Some fields missing - check present fields for conflicts
+    if (nonMatchingFields.length > 0) {
+      // Conflicts found in present fields → NEGATIVE
+      if (rule.name === "Rule-1") {
+        console.log(`🔍 Rule-1 returning NEGATIVE: missing fields + conflicts in present fields`)
+      }
+      return { 
+        status: "negative", 
+        matchingFields, 
+        nonMatchingFields, 
+        missingFields: missing,
+        rulesUsed: [[rule.name]]
+      }
+    } else {
+      // Only matches in present fields → NEUTRAL (no transitivity yet)
+      return { 
+        status: "neutral", 
+        matchingFields, 
+        nonMatchingFields, 
+        missingFields: missing,
+        rulesUsed: [[rule.name]]
+      }
     }
   } else if (nonMatchingFields.length > 0) {
     // All fields present but some conflict → NEGATIVE
@@ -55,7 +70,7 @@ export function evaluateSingleRule(rule: MatchRule, node1: NodeData, node2: Node
     return { 
       status: "positive", 
       matchingFields, 
-      nonMatchingFields: [], 
+      nonMatchingFields, 
       missingFields: [], 
       rulesUsed: [[rule.name]] 
     }
