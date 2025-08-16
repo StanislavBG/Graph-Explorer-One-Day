@@ -1,5 +1,5 @@
-import GraphExplorer from "../graph-explorer"
+import GraphExplorerRefactored from "./graph-explorer-refactored"
 
 export default function Page() {
-  return <GraphExplorer />
+  return <GraphExplorerRefactored />
 }

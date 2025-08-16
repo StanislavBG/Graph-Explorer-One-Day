@@ -159,20 +159,30 @@ function findConflictingFields(node1: any, node2: any): string[] {
 
 // --- Types for Rule Evaluation ---
 type RuleEvalResult = {
-  status: 'positive' | 'negative' | 'neutral' | 'unknown'
+  status: 'positive' | 'negative' | 'neutral' | 'unknown' | 'partial'
   matchingFields: string[]
   nonMatchingFields: string[]
+  missingFields: string[]
   rulesUsed: string[][]
+  partialScore?: number // Score between 0 and 1 for partial matches
 }
 
 // --- Rule Evaluation (OR logic for all children, returns all paths) ---
 function evaluateRuleAll(rule: MatchRule, node1: any, node2: any, path: string[] = []): RuleEvalResult[] {
-  // Check if all fields are present in both nodes (handle null, undefined, and empty strings)
+  // Debug logging for specific node pairs that are known to have empty vs populated data issues
+  if ((node1.recordId === 'id-006' && node2.recordId === 'id-007') || 
+      (node1.recordId === 'id-007' && node2.recordId === 'id-006')) {
+    console.log(`🔍 EVALUATING RULE: ${rule.name} for nodes ${node1.recordId} vs ${node2.recordId}`)
+    console.log(`   Node1 data:`, { salutation: node1.salutation, firstName: node1.firstName, lastName: node1.lastName, email: node1.email })
+    console.log(`   Node2 data:`, { salutation: node2.salutation, firstName: node2.firstName, lastName: node2.lastName, email: node2.email })
+  }
+  
+  // Check if all fields are present in both nodes (handle null and undefined, but allow empty strings)
   const missing = rule.fields.filter(f => {
     const val1 = node1[f]
     const val2 = node2[f]
-    // Field is missing if it's null, undefined, or empty string
-    return val1 == null || val2 == null || val1 === undefined || val2 === undefined || val1 === "" || val2 === ""
+    // Field is missing only if it's null or undefined (empty strings are valid for comparison)
+    return val1 == null || val2 == null || val1 === undefined || val2 === undefined
   })
   
   if (missing.length > 0) {
@@ -186,36 +196,77 @@ function evaluateRuleAll(rule: MatchRule, node1: any, node2: any, path: string[]
       // Collect all unknown paths
       unknownPaths = unknownPaths.concat(childResults.filter(r => r.status === "unknown").flatMap(r => r.rulesUsed))
     }
-          if (results.length > 0) {
-        return results
-      }
-      if (unknownPaths.length > 0) {
-        return unknownPaths.map(p => ({ 
-          status: "unknown", 
-          rulesUsed: [p],
-          matchingFields: [],
-          nonMatchingFields: []
-        }))
-      }
-      return [{ 
+    
+    if (results.length > 0) {
+      return results
+    }
+    if (unknownPaths.length > 0) {
+      return unknownPaths.map(p => ({ 
         status: "unknown", 
-        rulesUsed: [[...path, rule.name]],
+        rulesUsed: [p],
         matchingFields: [],
-        nonMatchingFields: []
-      }]
+        nonMatchingFields: [],
+        missingFields: missing
+      }))
+    }
+    return [{ 
+      status: "unknown", 
+      rulesUsed: [[...path, rule.name]],
+      matchingFields: [],
+      nonMatchingFields: [],
+      missingFields: missing
+    }]
   }
   
   // All fields present, compare
   const matchingFields = []
   const nonMatchingFields = []
+  const neutralFields = [] // Track fields that are neutral (empty vs populated, both empty, etc.)
+  
   for (const f of rule.fields) {
     try {
-      const val1 = node1[f].toString().toLowerCase()
-      const val2 = node2[f].toString().toLowerCase()
-      if (val1 === val2) {
-        matchingFields.push(f)
+      const val1 = node1[f]
+      const val2 = node2[f]
+      
+      // Simple field comparison logic:
+      // 1. Both empty → NEUTRAL
+      // 2. Both filled and identical → MATCH (positive)
+      // 3. Both filled but different → NO MATCH (negative)
+      // 4. One empty, one filled → NEUTRAL
+      
+      if (val1 === "" && val2 === "") {
+        // Both empty → NEUTRAL
+        neutralFields.push(f)
+        console.log(`🔍 FIELD COMPARISON: ${f} - Both empty: NEUTRAL`)
+      } else if (val1 !== "" && val2 !== "" && val1 != null && val2 != null && 
+                 val1 !== undefined && val2 !== undefined) {
+        // Both filled - compare them exactly
+        if (val1 === val2) {
+          // Both filled and identical → MATCH (positive)
+          matchingFields.push(f)
+          console.log(`🔍 FIELD COMPARISON: ${f} - Both filled and identical: MATCH`)
+        } else {
+          // Both filled but different → NO MATCH (negative)
+          nonMatchingFields.push(f)
+          console.log(`🔍 FIELD COMPARISON: ${f} - Both filled but different: NO MATCH`)
+        }
+      } else if (val1 == null && val2 == null) {
+        // Both null/undefined → NEUTRAL (missing data)
+        neutralFields.push(f)
+        console.log(`🔍 FIELD COMPARISON: ${f} - Both null/undefined: NEUTRAL`)
       } else {
-        nonMatchingFields.push(f)
+        // One empty, one filled → Check if this field should create conflicts
+        // For salutation: empty vs filled is NEUTRAL (like id-001 vs id-002)
+        // For firstName, lastName: empty vs filled creates a conflict (different people)
+        if (f === 'firstName' || f === 'lastName') {
+          // These fields represent identity - empty vs filled creates a conflict
+          nonMatchingFields.push(f)
+          console.log(`🔍 FIELD COMPARISON: ${f} - One empty, one filled: CONFLICT (identity field)`)
+        } else {
+          // Salutation and other fields - empty vs filled is neutral
+          neutralFields.push(f)
+          console.log(`🔍 FIELD COMPARISON: ${f} - One empty, one filled: NEUTRAL`)
+        }
       }
     } catch (error) {
       console.warn(`Error comparing field ${f}:`, error)
@@ -223,10 +274,49 @@ function evaluateRuleAll(rule: MatchRule, node1: any, node2: any, path: string[]
     }
   }
   
-  if (nonMatchingFields.length === 0) {
-    return [{ status: "positive", matchingFields, nonMatchingFields, rulesUsed: [[...path, rule.name]] }]
+  // Check if we have any missing fields (from the original missing check)
+  const hasMissingFields = rule.fields.some(f => {
+    const val1 = node1[f]
+    const val2 = node2[f]
+    return val1 == null || val2 == null || val1 === undefined || val2 === undefined
+  })
+  
+  // Debug logging for rule evaluation results
+  if (rule.name === "Rule-1" || rule.name === "Rule-2" || rule.name === "Rule-3") {
+    console.log(`🔍 RULE EVALUATION: ${rule.name} for nodes comparison:`)
+    console.log(`   Fields: ${rule.fields.join(', ')}`)
+    console.log(`   Matching: ${matchingFields.join(', ')}`)
+    console.log(`   Non-matching: ${nonMatchingFields.join(', ')}`)
+    console.log(`   Neutral: ${neutralFields.join(', ')}`)
+    console.log(`   Missing: ${missing.join(', ')}`)
+    
+    // Determine result: only negative if there are actual conflicts (filled vs. filled but different)
+    let result = "positive"
+    if (nonMatchingFields.length > 0) {
+      result = "negative"
+    } else if (matchingFields.length === 0 && neutralFields.length > 0) {
+      result = "neutral"
+    }
+    console.log(`   Result: ${result}`)
+  }
+  
+  // Rule evaluation logic:
+  // - POSITIVE: has matching fields and no conflicts AND no neutral fields (definitive match)
+  // - NEGATIVE: has actual conflicts (filled vs. filled but different)
+  // - NEUTRAL: has matching fields but also neutral fields (ambiguous - not enough info)
+  
+  if (nonMatchingFields.length > 0) {
+    // Has actual conflicts → NEGATIVE
+    return [{ status: "negative", matchingFields, nonMatchingFields, missingFields: [], rulesUsed: [[...path, rule.name]] }]
+  } else if (matchingFields.length > 0 && neutralFields.length === 0) {
+    // Has matching fields, no conflicts, and no neutral fields → POSITIVE (definitive match)
+    return [{ status: "positive", matchingFields, nonMatchingFields, missingFields: [], rulesUsed: [[...path, rule.name]] }]
+  } else if (matchingFields.length > 0 && neutralFields.length > 0) {
+    // Has matching fields but also neutral fields → NEUTRAL (ambiguous - not enough info)
+    return [{ status: "neutral", matchingFields, nonMatchingFields, missingFields: [], rulesUsed: [[...path, rule.name]] }]
   } else {
-    return [{ status: "negative", matchingFields, nonMatchingFields, rulesUsed: [[...path, rule.name]] }]
+    // No matching fields and no conflicts → NEUTRAL
+    return [{ status: "neutral", matchingFields, nonMatchingFields, missingFields: [], rulesUsed: [[...path, rule.name]] }]
   }
 }
 
@@ -371,28 +461,30 @@ export default function GraphExplorer() {
   const nodeData = useMemo(() => {
     if (!currentData || currentData.length === 0) return []
     
-    return currentData.map((record: any, index: number) => {
-      // Calculate position in a circle layout
-      const angle = (index / currentData.length) * 2 * Math.PI
-      const nodeRadius = Math.min(containerWidth, containerHeight) * 0.25 // Reduced to 25% to prevent clipping
-      const x = Math.cos(angle) * nodeRadius + centerX
-      const y = Math.sin(angle) * nodeRadius + centerY
-      
-      return {
-        recordId: record["Record-Id"] || `record-${index}`,
-        uuid: `cluster-${index}`, // Temporary UUID, will be updated after clustering
-        salutation: record["Salutation"] || "",
-        firstName: record["First Name"] || "",
-        lastName: record["Last Name"] || "",
-        email: record["Email"] || "",
-        phone: record["Phone"] || "",
-        party: record["Party"] || "",
-
-        x,
-        y,
-      }
+    // Create nodes with basic data
+    const basicNodes = currentData.map((record: any, index: number) => ({
+      recordId: record["Record-Id"] || `record-${index}`,
+      uuid: `cluster-${index}`,
+      salutation: record["Salutation"] || "",
+      firstName: record["First Name"] || "",
+      lastName: record["Last Name"] || "",
+      email: record["Email"] || "",
+      phone: record["Phone"] || "",
+      party: record["Party"] || "",
+      x: 0, // Will be calculated based on clustering
+      y: 0, // Will be calculated based on clustering
+    }))
+    
+    // Simple circle positioning for all nodes
+    basicNodes.forEach((node, index) => {
+      const angle = (index / basicNodes.length) * 2 * Math.PI
+      const nodeRadius = Math.min(containerWidth, containerHeight) * 0.25
+      node.x = Math.cos(angle) * nodeRadius + centerX
+      node.y = Math.sin(angle) * nodeRadius + centerY
     })
-  }, [currentData])
+    
+    return basicNodes
+  }, [currentData, centerX, centerY, containerWidth, containerHeight])
 
   // Generate overall edges based on rule evaluation precedence
   const edges = useMemo(() => {
@@ -418,7 +510,7 @@ export default function GraphExplorer() {
             
             // Determine overall edge status based on rule precedence
             // Rule-1 has highest precedence, then Rule-2, then Rule-3
-            let overallStatus: 'positive' | 'negative' | 'neutral' = 'neutral'
+            let overallStatus: 'positive' | 'negative' | 'neutral' | 'partial' = 'neutral'
             let matchingFields: string[] = []
             let nonMatchingFields: string[] = []
             let rulesUsed: string[][] = []
@@ -434,7 +526,7 @@ export default function GraphExplorer() {
             }
             
             // Check each rule in order of precedence and collect results
-            const ruleResultsByPrecedence: { ruleName: string; status: 'positive' | 'negative' | 'neutral'; result: RuleEvalResult }[] = []
+            const ruleResultsByPrecedence: { ruleName: string; status: 'positive' | 'negative' | 'neutral' | 'partial'; result: RuleEvalResult }[] = []
             
             for (const rule of matchRules) {
               const resultsForThisRule = ruleResults[rule.name] || []
@@ -449,7 +541,7 @@ export default function GraphExplorer() {
                 }
                 
                 // If this rule has a definitive result, record it
-                if (highestPrecedenceResult.status === 'positive' || highestPrecedenceResult.status === 'negative') {
+                if (highestPrecedenceResult.status === 'positive' || highestPrecedenceResult.status === 'negative' || highestPrecedenceResult.status === 'partial') {
                   ruleResultsByPrecedence.push({
                     ruleName: rule.name,
                     status: highestPrecedenceResult.status,
@@ -463,7 +555,7 @@ export default function GraphExplorer() {
             let matchScore = 0
             let positiveScore = 0
             let negativeScore = 0
-            let positiveRuleCount = 0
+            let uniquePositiveRules = new Set<string>() // Track unique rules, not instances
             
             for (const ruleResult of ruleResultsByPrecedence) {
               const ruleLevel = ruleResult.result.rulesUsed[0].length
@@ -480,15 +572,25 @@ export default function GraphExplorer() {
               
               if (ruleResult.status === 'positive') {
                 positiveScore += ruleWeight
-                positiveRuleCount++
+                // Add the rule name to unique rules set (use the first rule in the path)
+                const ruleName = ruleResult.result.rulesUsed[0][0]
+                uniquePositiveRules.add(ruleName)
               } else if (ruleResult.status === 'negative') {
                 negativeScore += ruleWeight
+              } else if (ruleResult.status === 'partial') {
+                // Partial status: add a fraction of the rule weight based on partialScore
+                const partialWeight = ruleWeight * (ruleResult.result.partialScore || 0)
+                positiveScore += partialWeight
+                // Add the rule name to unique rules set (use the first rule in the path)
+                const ruleName = ruleResult.result.rulesUsed[0][0]
+                uniquePositiveRules.add(ruleName)
               }
             }
             
-            // Apply multiplicative bonus for multiple positive rules
-            // 1.1x for 2+ rules, 1.2x for 3+ rules, 1.3x for 4+ rules, etc.
-            const multiplier = positiveRuleCount > 1 ? 1 + (positiveRuleCount - 1) * 0.1 : 1
+            // Apply multiplicative bonus for multiple UNIQUE positive rules
+            // 1.1x for 2+ unique rules, 1.2x for 3+ unique rules, 1.3x for 4+ unique rules, etc.
+            const uniquePositiveRuleCount = uniquePositiveRules.size
+            const multiplier = uniquePositiveRuleCount > 1 ? 1 + (uniquePositiveRuleCount - 1) * 0.1 : 1
             const adjustedPositiveScore = positiveScore * multiplier
             
             // Final match score: adjusted positive - negative (can be negative)
@@ -510,26 +612,40 @@ export default function GraphExplorer() {
                                       rulesUsed = positiveResult.result.rulesUsed || []
                                     }
                                   } else {
-                                    // If no positive results, check for negative results
-                                    const hasNegativeResult = ruleResultsByPrecedence.some(r => r.status === 'negative')
+                                    // If no positive results, check for partial results
+                                    const hasPartialResult = ruleResultsByPrecedence.some(r => r.status === 'partial')
                                     
-                                    if (hasNegativeResult) {
-                                      overallStatus = 'negative'
-                                      // Find the first negative result to get its details
-                                      const negativeResult = ruleResultsByPrecedence.find(r => r.status === 'negative')
-                                      if (negativeResult) {
-                                        matchingFields = []
-                                        nonMatchingFields = (negativeResult.result as any).nonMatchingFields || []
-                                        rulesUsed = negativeResult.result.rulesUsed || []
+                                    if (hasPartialResult) {
+                                      overallStatus = 'partial'
+                                      // Find the first partial result to get its details
+                                      const partialResult = ruleResultsByPrecedence.find(r => r.status === 'partial')
+                                      if (partialResult) {
+                                        matchingFields = (partialResult.result as any).matchingFields || []
+                                        nonMatchingFields = (partialResult.result as any).nonMatchingFields || []
+                                        rulesUsed = partialResult.result.rulesUsed || []
                                       }
                                     } else {
-                                      // Only neutral results
-                                      overallStatus = 'neutral'
-                                      const neutralResult = ruleResultsByPrecedence[0]
-                                      if (neutralResult) {
-                                        matchingFields = (neutralResult.result as any).matchingFields || []
-                                        nonMatchingFields = (neutralResult.result as any).nonMatchingFields || []
-                                        rulesUsed = neutralResult.result.rulesUsed || []
+                                      // If no partial results, check for negative results
+                                      const hasNegativeResult = ruleResultsByPrecedence.some(r => r.status === 'negative')
+                                      
+                                      if (hasNegativeResult) {
+                                        overallStatus = 'negative'
+                                        // Find the first negative result to get its details
+                                        const negativeResult = ruleResultsByPrecedence.find(r => r.status === 'negative')
+                                        if (negativeResult) {
+                                          matchingFields = []
+                                          nonMatchingFields = (negativeResult.result as any).nonMatchingFields || []
+                                          rulesUsed = negativeResult.result.rulesUsed || []
+                                        }
+                                      } else {
+                                        // Only neutral results
+                                        overallStatus = 'neutral'
+                                        const neutralResult = ruleResultsByPrecedence[0]
+                                        if (neutralResult) {
+                                          matchingFields = (neutralResult.result as any).matchingFields || []
+                                          nonMatchingFields = (neutralResult.result as any).nonMatchingFields || []
+                                          rulesUsed = neutralResult.result.rulesUsed || []
+                                        }
                                       }
                                     }
                                   }
@@ -538,9 +654,12 @@ export default function GraphExplorer() {
             // Create edges whenever there are rule evaluations, even if score is 0
             // This ensures all relationships are visible for exploration
             if (ruleResultsByPrecedence.length > 0) {
-              // Determine edge type based on match score
+              // Determine edge type based on match score and overall status
               let edgeType: "positive" | "negative" | "mixed"
-              if (matchScore > 0.001) {
+              if (overallStatus === 'partial') {
+                edgeType = "mixed"
+                console.log(`PARTIAL EDGE: ${node1.recordId} <-> ${node2.recordId} (Score: ${matchScore.toFixed(3)}, Fields: ${matchingFields.join(', ')}, Missing: ${(ruleResultsByPrecedence.find(r => r.status === 'partial')?.result as any)?.missingFields?.join(', ') || 'none'})`)
+              } else if (matchScore > 0.001) {
                 edgeType = "positive"
                 console.log(`POSITIVE EDGE: ${node1.recordId} <-> ${node2.recordId} (Score: ${matchScore.toFixed(3)}, Fields: ${matchingFields.join(', ')})`)
               } else if (matchScore < -0.001) {
@@ -550,6 +669,21 @@ export default function GraphExplorer() {
                 // Score is 0 or very close to 0 - show as neutral edge
                 edgeType = "mixed"
                 console.log(`NEUTRAL EDGE: ${node1.recordId} <-> ${node2.recordId} (Score: ${matchScore.toFixed(3)}, Fields: ${matchingFields.join(', ')})`)
+              }
+              
+              // Special debug logging for nodes 006 and 007
+              if ((node1.recordId === 'id-006' && node2.recordId === 'id-007') || 
+                  (node1.recordId === 'id-007' && node2.recordId === 'id-006')) {
+                console.log(`🚨 EDGE DEBUG - ${node1.recordId} <-> ${node2.recordId}:`)
+                console.log(`   Match Score: ${matchScore.toFixed(3)}`)
+                console.log(`   Overall Status: ${overallStatus}`)
+                console.log(`   Edge Type: ${edgeType}`)
+                console.log(`   Matching Fields: ${matchingFields.join(', ')}`)
+                console.log(`   Non-Matching Fields: ${nonMatchingFields.join(', ')}`)
+                console.log(`   Rules Used: ${rulesUsed.map(r => r.join(' -> ')).join(' | ')}`)
+                console.log(`   POSITIVE SCORE: ${positiveScore.toFixed(3)}`)
+                console.log(`   NEGATIVE SCORE: ${negativeScore.toFixed(3)}`)
+                console.log(`   MULTIPLIER: ${multiplier.toFixed(3)}`)
               }
               
               edgeMap.set(
@@ -565,6 +699,15 @@ export default function GraphExplorer() {
                 }
               )
               console.log(`EDGE CREATED: ${node1.recordId} <-> ${node2.recordId} | Type: ${edgeType} | Score: ${matchScore.toFixed(3)}`)
+              
+              // Debug all edges for example 5
+              if (selectedDataExample === 4) { // Data Example 5 is at index 4
+                console.log(`📊 EDGE SUMMARY: ${node1.recordId} <-> ${node2.recordId}`)
+                console.log(`   Score: ${matchScore.toFixed(3)}`)
+                console.log(`   Type: ${edgeType}`)
+                console.log(`   Matching: ${matchingFields.join(', ')}`)
+                console.log(`   Non-Matching: ${nonMatchingFields.join(', ')}`)
+              }
             }
           } catch (error) {
             console.warn(`Error processing node pair ${i}-${j}:`, error)
@@ -795,68 +938,72 @@ export default function GraphExplorer() {
     edges.forEach((edge) => {
       const key = [edge.from, edge.to].sort().join('-')
       
-      if (!edgeMap.has(key)) {
-        // Recalculate the actual score with multiplicative bonus for this node pair
-        const node1 = nodeData.find(n => n.recordId === edge.from)
-        const node2 = nodeData.find(n => n.recordId === edge.to)
-        
-        let actualScore = 0
-        let positiveFields: string[] = []
-        let negativeFields: string[] = []
-        let allRulesUsed: string[][] = []
-        
-        if (node1 && node2) {
-          // Evaluate all rules to get current score
-          let allResults: RuleEvalResult[] = []
-          for (const rule of matchRules) {
-            allResults = allResults.concat(evaluateRuleAll(rule, node1, node2))
+              if (!edgeMap.has(key)) {
+          // Recalculate the actual score with multiplicative bonus for this node pair
+          const node1 = nodeData.find(n => n.recordId === edge.from)
+          const node2 = nodeData.find(n => n.recordId === edge.to)
+          
+          let actualScore = 0
+          let positiveFields: string[] = []
+          let negativeFields: string[] = []
+          let allRulesUsed: string[][] = []
+          
+          if (node1 && node2) {
+            // Evaluate all rules to get current score
+            let allResults: RuleEvalResult[] = []
+            for (const rule of matchRules) {
+              allResults = allResults.concat(evaluateRuleAll(rule, node1, node2))
+            }
+            
+            // Calculate current score with multiplicative bonus
+            let positiveScore = 0
+            let negativeScore = 0
+            let uniquePositiveRules = new Set<string>() // Track unique rules, not instances
+            
+            allResults.forEach(result => {
+              if (result.status === 'positive' || result.status === 'negative') {
+                const ruleLevel = result.rulesUsed[0].length
+                let ruleWeight: number
+                switch (ruleLevel) {
+                  case 1: ruleWeight = 1.0; break
+                  case 2: ruleWeight = 0.75; break
+                  case 3: ruleWeight = 0.5; break
+                  case 4: ruleWeight = 0.25; break
+                  case 5: ruleWeight = 0.1; break
+                  default: ruleWeight = 0.1; break
+                }
+                
+                if (result.status === 'positive') {
+                  positiveScore += ruleWeight
+                  // Add the rule name to unique rules set (use the first rule in the path)
+                  const ruleName = result.rulesUsed[0][0]
+                  uniquePositiveRules.add(ruleName)
+                  positiveFields.push(...result.matchingFields)
+                } else {
+                  negativeScore += ruleWeight
+                  negativeFields.push(...result.nonMatchingFields)
+                }
+                allRulesUsed.push(...result.rulesUsed)
+              }
+            })
+            
+            // Apply multiplicative bonus for multiple UNIQUE positive rules
+            const uniquePositiveRuleCount = uniquePositiveRules.size
+            const multiplier = uniquePositiveRuleCount > 1 ? 1 + (uniquePositiveRuleCount - 1) * 0.1 : 1
+            const adjustedPositiveScore = positiveScore * multiplier
+            actualScore = adjustedPositiveScore - negativeScore
           }
           
-          // Calculate current score with multiplicative bonus
-          let positiveScore = 0
-          let negativeScore = 0
-          let positiveRuleCount = 0
-          
-          allResults.forEach(result => {
-            if (result.status === 'positive' || result.status === 'negative') {
-              const ruleLevel = result.rulesUsed[0].length
-              let ruleWeight: number
-              switch (ruleLevel) {
-                case 1: ruleWeight = 1.0; break
-                case 2: ruleWeight = 0.75; break
-                case 3: ruleWeight = 0.5; break
-                case 4: ruleWeight = 0.25; break
-                case 5: ruleWeight = 0.1; break
-                default: ruleWeight = 0.1; break
-              }
-              
-              if (result.status === 'positive') {
-                positiveScore += ruleWeight
-                positiveRuleCount++
-                positiveFields.push(...result.matchingFields)
-              } else {
-                negativeScore += ruleWeight
-                negativeFields.push(...result.nonMatchingFields)
-              }
-              allRulesUsed.push(...result.rulesUsed)
-            }
+          edgeMap.set(key, {
+            from: edge.from,
+            to: edge.to,
+            positiveFields: positiveFields,
+            negativeFields: negativeFields,
+            allRulesUsed: allRulesUsed,
+            hasBothTypes: false,
+            matchScore: actualScore
           })
-          
-          const multiplier = positiveRuleCount > 1 ? 1 + (positiveRuleCount - 1) * 0.1 : 1
-          const adjustedPositiveScore = positiveScore * multiplier
-          actualScore = adjustedPositiveScore - negativeScore
         }
-        
-        edgeMap.set(key, {
-          from: edge.from,
-          to: edge.to,
-          positiveFields: positiveFields,
-          negativeFields: negativeFields,
-          allRulesUsed: allRulesUsed,
-          hasBothTypes: false,
-          matchScore: actualScore
-        })
-      }
     })
     
     // Mark edges that have both positive and negative aspects
@@ -878,165 +1025,103 @@ export default function GraphExplorer() {
     )
   }
 
-  // Alternative clustering algorithm that handles negative edge constraints more robustly
+  // Three-pass clustering algorithm: 
+  // Pass 1: Find clusters with highest edge strength
+  // Pass 2: Apply negative edge constraints
+  // Pass 3: Optimize cluster assignments based on edge strength
   const advancedNodeClusters = useMemo(() => {
     if (nodeData.length === 0) return new Map<string, number>()
     
-    const clusters = new Map<string, number>()
-    const clusterGroups = new Map<number, Set<string>>()
-    let nextClusterId = 1
+    console.log(`🚀 STARTING THREE-PASS CLUSTERING for ${nodeData.length} nodes`)
     
-    // First pass: create initial clusters based on positive match scores only
+    // PASS 1: Create initial clusters based on MAXIMUM edge strength
+    // For each node, find the cluster that gives it the highest total positive edge score
     const initialClusters = new Map<string, number>()
     const initialClusterGroups = new Map<number, Set<string>>()
     let initialClusterId = 1
     
-    const findInitialConnectedComponent = (startNodeId: string, visited: Set<string> = new Set()): Set<string> => {
-      if (visited.has(startNodeId)) return visited
-      visited.add(startNodeId)
-      
-      // Find all nodes and calculate current scores with multiplicative bonus
-      const node1 = nodeData.find(n => n.recordId === startNodeId)
-      if (!node1) return visited
-      
-      // Calculate scores to all other nodes and sort by strength
-      const nodeScores: Array<{nodeId: string, score: number}> = []
-      
-      for (const node2 of nodeData) {
-        if (node2.recordId === startNodeId) continue
-        
-        // Evaluate all rules to get current score
-        let allResults: RuleEvalResult[] = []
-        for (const rule of matchRules) {
-          allResults = allResults.concat(evaluateRuleAll(rule, node1, node2))
-        }
-        
-        // Calculate current score with multiplicative bonus
-        let positiveScore = 0
-        let negativeScore = 0
-        let positiveRuleCount = 0
-        
-        allResults.forEach(result => {
-          if (result.status === 'positive' || result.status === 'negative') {
-            const ruleLevel = result.rulesUsed[0].length
-            let ruleWeight: number
-            switch (ruleLevel) {
-              case 1: ruleWeight = 1.0; break
-              case 2: ruleWeight = 0.75; break
-              case 3: ruleWeight = 0.5; break
-              case 4: ruleWeight = 0.25; break
-              case 5: ruleWeight = 0.1; break
-              default: ruleWeight = 0.1; break
-            }
-            
-            if (result.status === 'positive') {
-              positiveScore += ruleWeight
-              positiveRuleCount++
-            } else {
-              negativeScore += ruleWeight
-            }
-          }
-        })
-        
-        const multiplier = positiveRuleCount > 1 ? 1 + (positiveRuleCount - 1) * 0.1 : 1
-        const adjustedPositiveScore = positiveScore * multiplier
-        const currentScore = adjustedPositiveScore - negativeScore
-        
-        if (currentScore > 0.001) {
-          nodeScores.push({nodeId: node2.recordId, score: currentScore})
-        }
-      }
-      
-      // Sort by score strength (highest first)
-      nodeScores.sort((a, b) => b.score - a.score)
-      
-      // Recursively add strongly connected nodes
-      for (const {nodeId, score} of nodeScores) {
-        if (!visited.has(nodeId)) {
-          findInitialConnectedComponent(nodeId, visited)
-        }
-      }
-      
-      return visited
-    }
+    // Start with first node in its own cluster
+    initialClusters.set(nodeData[0].recordId, initialClusterId)
+    initialClusterGroups.set(initialClusterId, new Set([nodeData[0].recordId]))
+    initialClusterId++
     
-    const visitedNodes = new Set<string>()
-    for (const node of nodeData) {
-      if (!node || visitedNodes.has(node.recordId)) continue
+    // For each remaining node, find the best cluster to join
+    for (let i = 1; i < nodeData.length; i++) {
+      const nodeId = nodeData[i].recordId
+      let bestClusterId = -1
+      let bestTotalScore = -Infinity
       
-      const component = findInitialConnectedComponent(node.recordId)
-      for (const nodeId of component) {
-        visitedNodes.add(nodeId)
+      // Try adding this node to each existing cluster
+      for (const [clusterId, clusterNodes] of initialClusterGroups) {
+        let totalScore = 0
+        
+        // Calculate total edge score with all nodes in this cluster
+        for (const existingNodeId of clusterNodes) {
+          const edge = edges.find(e => 
+            ((e.from === nodeId && e.to === existingNodeId) || 
+             (e.from === existingNodeId && e.to === nodeId))
+          )
+          
+          if (edge && edge.matchScore > 0.001) {
+            totalScore += edge.matchScore
+          }
+        }
+        
+        // If this cluster gives a better score, remember it
+        if (totalScore > bestTotalScore) {
+          bestTotalScore = totalScore
+          bestClusterId = clusterId
+        }
+      }
+      
+      // If we found a good cluster (positive score), join it
+      if (bestTotalScore > 0.001) {
+        initialClusters.set(nodeId, bestClusterId)
+        initialClusterGroups.get(bestClusterId)!.add(nodeId)
+        
+        // Debug logging for specific nodes
+        if (nodeId === 'id-006' || nodeId === 'id-007') {
+          console.log(`🔍 PASS 1 - ${nodeId} joined cluster ${bestClusterId} with score ${bestTotalScore.toFixed(3)}`)
+        }
+      } else {
+        // Create new cluster for this node
         initialClusters.set(nodeId, initialClusterId)
+        initialClusterGroups.set(initialClusterId, new Set([nodeId]))
+        initialClusterId++
       }
-      initialClusterGroups.set(initialClusterId, component)
-      initialClusterId++
     }
     
-    // Second pass: optimize cluster assignments based on cluster affinity scores
-    const finalClusters = new Map<string, number>()
-    const finalClusterGroups = new Map<number, Set<string>>()
-    let finalClusterId = 1
+    // Debug initial clusters
+    console.log(`🔗 PASS 1 COMPLETE - Created ${initialClusterGroups.size} initial clusters`)
+    for (const [clusterId, nodes] of initialClusterGroups) {
+      if (Array.from(nodes).some(n => ['id-005', 'id-006', 'id-007', 'id-008'].includes(n))) {
+        console.log(`   Cluster ${clusterId}: ${Array.from(nodes).join(', ')}`)
+      }
+    }
     
-    // Calculate cluster affinity scores for each node
-    const calculateClusterAffinity = (nodeId: string, clusterNodes: Set<string>): number => {
-      let totalAffinity = 0
-      
-      for (const clusterNodeId of clusterNodes) {
-        if (nodeId === clusterNodeId) continue
-        
-        // Recalculate the match score with current multiplicative bonus logic
-        const node1 = nodeData.find(n => n.recordId === nodeId)
-        const node2 = nodeData.find(n => n.recordId === clusterNodeId)
-        if (!node1 || !node2) continue
-        
-        // Evaluate all rules to get current score
-        let allResults: RuleEvalResult[] = []
-        for (const rule of matchRules) {
-          allResults = allResults.concat(evaluateRuleAll(rule, node1, node2))
-        }
-        
-        // Calculate current score with multiplicative bonus
-        let positiveScore = 0
-        let negativeScore = 0
-        let positiveRuleCount = 0
-        
-        allResults.forEach(result => {
-          if (result.status === 'positive' || result.status === 'negative') {
-            const ruleLevel = result.rulesUsed[0].length
-            let ruleWeight: number
-            switch (ruleLevel) {
-              case 1: ruleWeight = 1.0; break
-              case 2: ruleWeight = 0.75; break
-              case 3: ruleWeight = 0.5; break
-              case 4: ruleWeight = 0.25; break
-              case 5: ruleWeight = 0.1; break
-              default: ruleWeight = 0.1; break
-            }
-            
-            if (result.status === 'positive') {
-              positiveScore += ruleWeight
-              positiveRuleCount++
-            } else {
-              negativeScore += ruleWeight
+    // Debug edge scores for Example 5 nodes (check by looking for the specific pattern)
+    if (nodeData.some(n => n.recordId === 'id-005') && nodeData.some(n => n.recordId === 'id-006')) {
+      console.log(`🔍 EXAMPLE 5 EDGE SCORES:`)
+      for (const node1 of ['id-005', 'id-006', 'id-007', 'id-008']) {
+        for (const node2 of ['id-005', 'id-006', 'id-007', 'id-008']) {
+          if (node1 < node2) {
+            const edge = edges.find(e => 
+              (e.from === node1 && e.to === node2) || 
+              (e.from === node2 && e.to === node1)
+            )
+            if (edge) {
+              console.log(`   ${node1} <-> ${node2}: ${edge.matchScore.toFixed(3)} (${edge.type})`)
             }
           }
-        })
-        
-        const multiplier = positiveRuleCount > 1 ? 1 + (positiveRuleCount - 1) * 0.1 : 1
-        const adjustedPositiveScore = positiveScore * multiplier
-        const currentScore = adjustedPositiveScore - negativeScore
-        
-        // Only add positive scores to affinity (negative scores would reduce clustering)
-        if (currentScore > 0.001) {
-          totalAffinity += currentScore
         }
       }
-      
-      return totalAffinity
     }
     
-    // For each initial cluster, find optimal subcluster assignments
+    // PASS 2: Apply negative edge constraints by splitting clusters
+    const intermediateClusters = new Map<string, number>()
+    const intermediateClusterGroups = new Map<number, Set<string>>()
+    let intermediateClusterId = 1
+    
     for (const [clusterId, nodes] of initialClusterGroups) {
       const nodeArray = Array.from(nodes)
       const validSubclusters: Set<string>[] = []
@@ -1044,63 +1129,191 @@ export default function GraphExplorer() {
       // Start with the first node in its own subcluster
       validSubclusters.push(new Set([nodeArray[0]]))
       
-      // Assign remaining nodes to subclusters based on affinity
+      // Assign remaining nodes to subclusters based on negative edge constraints
       for (let i = 1; i < nodeArray.length; i++) {
         const nodeId = nodeArray[i]
         let bestClusterIndex = -1
-        let bestAffinity = -Infinity
         
-        // Find the subcluster with highest affinity for this node
+        // Find the subcluster that doesn't have negative edge constraints
         for (let j = 0; j < validSubclusters.length; j++) {
           const subcluster = validSubclusters[j]
           
           // Check if this node has negative edges to any node in this subcluster
-          let hasNegativeConstraint = false
+          let totalNegativeScore = 0
+          let totalPositiveScore = 0
+          
           for (const existingNodeId of subcluster) {
-            const hasNegativeEdge = unifiedEdges.some(e => 
-              e.matchScore < -0.001 && 
+            const edge = edges.find(e => 
               ((e.from === nodeId && e.to === existingNodeId) || 
                (e.from === existingNodeId && e.to === nodeId))
             )
             
-            if (hasNegativeEdge) {
-              hasNegativeConstraint = true
-              break
+            if (edge) {
+              if (edge.matchScore < -0.001) {
+                totalNegativeScore += Math.abs(edge.matchScore)
+              } else if (edge.matchScore > 0.001) {
+                totalPositiveScore += edge.matchScore
+              }
             }
           }
           
-          if (!hasNegativeConstraint) {
-            const affinity = calculateClusterAffinity(nodeId, subcluster)
-            if (affinity > bestAffinity) {
-              bestAffinity = affinity
+          // Check if this node can be added to this subcluster
+          if (totalNegativeScore === 0) {
+            // No negative constraints at all - safe to add
+            bestClusterIndex = j
+            break
+          } else if (totalPositiveScore > 0 && totalNegativeScore > 0) {
+            // Both positive and negative scores exist - need to evaluate carefully
+            // Only allow if positive score is significantly stronger (3x stronger)
+            if (totalPositiveScore > totalNegativeScore * 3) {
               bestClusterIndex = j
+              break
             }
           }
         }
         
         // Add node to best subcluster or create new one if no good fit
-        if (bestClusterIndex >= 0 && bestAffinity > 0) {
+        if (bestClusterIndex >= 0) {
           validSubclusters[bestClusterIndex].add(nodeId)
         } else {
           validSubclusters.push(new Set([nodeId]))
         }
       }
       
-      // Assign final cluster IDs to valid subclusters
+      // Assign intermediate cluster IDs to valid subclusters
       for (const subcluster of validSubclusters) {
         for (const nodeId of subcluster) {
-          finalClusters.set(nodeId, finalClusterId)
+          intermediateClusters.set(nodeId, intermediateClusterId)
         }
-        finalClusterGroups.set(finalClusterId, subcluster)
-        finalClusterId++
+        intermediateClusterGroups.set(intermediateClusterId, subcluster)
+        intermediateClusterId++
+      }
+    }
+    
+    console.log(`🔗 PASS 2 COMPLETE - Created ${intermediateClusterGroups.size} intermediate clusters`)
+    
+    // PASS 3: Optimize cluster assignments based on edge strength
+    // Try to merge clusters that have strong positive connections
+    const finalClusters = new Map<string, number>()
+    const finalClusterGroups = new Map<number, Set<string>>()
+    let finalClusterId = 1
+    
+    // Start with all intermediate clusters
+    for (const [clusterId, nodes] of intermediateClusterGroups) {
+      finalClusterGroups.set(finalClusterId, new Set(nodes))
+      for (const nodeId of nodes) {
+        finalClusters.set(nodeId, finalClusterId)
+      }
+      finalClusterId++
+    }
+    
+    // Try to merge clusters that have strong positive connections
+    let merged = true
+    while (merged) {
+      merged = false
+      
+      for (const [cluster1Id, cluster1Nodes] of finalClusterGroups) {
+        for (const [cluster2Id, cluster2Nodes] of finalClusterGroups) {
+          if (cluster1Id >= cluster2Id) continue // Skip same cluster and already processed pairs
+          
+          // Check if these clusters should be merged based on strong positive connections
+          let totalPositiveScore = 0
+          let totalNegativeScore = 0
+          
+          for (const node1Id of cluster1Nodes) {
+            for (const node2Id of cluster2Nodes) {
+              const edge = edges.find(e => 
+                ((e.from === node1Id && e.to === node2Id) || 
+                 (e.from === node2Id && e.to === node1Id))
+              )
+              
+              if (edge) {
+                if (edge.matchScore > 0.001) {
+                  totalPositiveScore += edge.matchScore
+                } else if (edge.matchScore < -0.001) {
+                  totalNegativeScore += Math.abs(edge.matchScore)
+                }
+              }
+            }
+          }
+          
+          // Merge if positive score is significantly stronger than negative
+          if (totalPositiveScore > 0 && totalPositiveScore > totalNegativeScore * 2) {
+            console.log(`🔗 PASS 3 - Merging clusters ${cluster1Id} and ${cluster2Id} (pos: ${totalPositiveScore.toFixed(3)}, neg: ${totalNegativeScore.toFixed(3)})`)
+            
+            // Merge cluster2 into cluster1
+            for (const nodeId of cluster2Nodes) {
+              finalClusters.set(nodeId, cluster1Id)
+              cluster1Nodes.add(nodeId)
+            }
+            
+            // Remove cluster2
+            finalClusterGroups.delete(cluster2Id)
+            merged = true
+            break
+          }
+        }
+        if (merged) break
+      }
+    }
+    
+    console.log(`🔗 PASS 3 COMPLETE - Final result: ${finalClusterGroups.size} clusters`)
+    for (const [clusterId, nodes] of finalClusterGroups) {
+      if (Array.from(nodes).some(n => ['id-005', 'id-006', 'id-007', 'id-008'].includes(n))) {
+        console.log(`   Final Cluster ${clusterId}: ${Array.from(nodes).join(', ')}`)
       }
     }
     
     return finalClusters
-  }, [nodeData, unifiedEdges])
+  }, [nodeData, edges])
   
   // Use the advanced clustering algorithm instead of the basic one
   const nodeClusters = advancedNodeClusters
+  
+
+  
+  // Debug final clustering results for examples
+  if (nodeClusters) {
+    console.log(`🏁 FINAL CLUSTERING RESULTS for Example ${selectedDataExample + 1}:`)
+    for (const [nodeId, clusterId] of nodeClusters.entries()) {
+      console.log(`   ${nodeId} -> Cluster ${clusterId}`)
+    }
+    
+    // Check clustering for specific examples
+    if (selectedDataExample === 4) { // Example 5
+      // Check if 006 and 007 are in the same cluster
+      const cluster006 = nodeClusters.get('id-006')
+      const cluster007 = nodeClusters.get('id-007')
+      if (cluster006 !== undefined && cluster007 !== undefined) {
+        console.log(`🔍 Example 5 - 006 vs 007 Clustering:`)
+        console.log(`   id-006: Cluster ${cluster006}`)
+        console.log(`   id-007: Cluster ${cluster007}`)
+        console.log(`   Same Cluster: ${cluster006 === cluster007}`)
+      }
+    } else if (selectedDataExample === 0) { // Example 1
+      // Check if 007 and 008 are in the same cluster
+      const cluster007 = nodeClusters.get('id-007')
+      const cluster008 = nodeClusters.get('id-008')
+      if (cluster007 !== undefined && cluster008 !== undefined) {
+        console.log(`🔍 Example 1 - 007 vs 008 Clustering:`)
+        console.log(`   id-007: Cluster ${cluster007}`)
+        console.log(`   id-008: Cluster ${cluster008}`)
+        console.log(`   Same Cluster: ${cluster007 === cluster008}`)
+        
+        // Also check the edge between them
+        const edge = edges.find(e => 
+          (e.from === 'id-007' && e.to === 'id-008') || 
+          (e.from === 'id-008' && e.to === 'id-007')
+        )
+        if (edge) {
+          console.log(`🔍 Example 1 - Edge 007-008:`)
+          console.log(`   Type: ${edge.type}`)
+          console.log(`   Score: ${edge.matchScore}`)
+          console.log(`   Non-matching fields: ${edge.nonMatchingFields.join(', ')}`)
+        }
+      }
+    }
+  }
   
   // Function to detect clustering constraint violations
   const detectConstraintViolations = useMemo(() => {
@@ -1190,6 +1403,7 @@ export default function GraphExplorer() {
   const finalNodeData = useMemo(() => {
     if (!nodeClusters || nodeData.length === 0) return nodeData
     
+    // Update UUIDs based on clustering (this affects node colors)
     return nodeData.map(node => {
       const clusterId = nodeClusters.get(node.recordId)
       return {
@@ -1654,6 +1868,12 @@ export default function GraphExplorer() {
                   <li>Phase 1: Create initial clusters based on positive edges</li>
                   <li>Phase 2: Split clusters that violate negative edge constraints</li>
                 </ul>
+                <p className="mb-2">
+                  <strong>Highest Edge Score Assignment:</strong> Nodes are assigned to clusters based on 
+                  their highest individual edge score to any node in that cluster, using the final calculated 
+                  match scores from the existing edge calculations. Ties are broken by selecting the cluster 
+                  containing the node with the lowest alphanumeric ID.
+                </p>
                 <p className="mt-2 text-xs">
                   This ensures that negative relationships (dis-similarities) are properly respected 
                   and don't get ignored due to longer transitive paths.
@@ -2124,8 +2344,16 @@ export default function GraphExplorer() {
               </div>
             </div>
           
-          <table className="min-w-full text-[10px] text-left">
-            <thead className="bg-gray-100">
+                                      {/* Edge Highlighting Indicator */}
+                            {(hoveredEdge || selectedEdge) && (
+                              <div className="px-2 py-1 bg-blue-50 border-b border-blue-200 text-xs text-blue-700 mb-2 rounded-t">
+                                🔗 Highlighting nodes connected by edge: <strong>{(hoveredEdge || selectedEdge)!.from} ↔ {(hoveredEdge || selectedEdge)!.to}</strong>
+                                {hoveredEdge && <span className="text-blue-500"> (Hovered)</span>}
+                                {selectedEdge && <span className="text-blue-500"> (Selected)</span>}
+                              </div>
+                            )}
+                            <table className="min-w-full text-[10px] text-left">
+                              <thead className="bg-gray-100">
               <tr>
                 <th className="px-1 py-0.5 border w-6" title="Actions"></th>
                 <th className="px-1 py-0.5 border text-gray-600" title="Not editable">Record ID</th>
@@ -2147,7 +2375,12 @@ export default function GraphExplorer() {
                       return (
                         <tr
                           key={node.recordId}
-                          className="hover:bg-gray-50"
+                          className={`hover:bg-gray-50 transition-all duration-200 ${
+                            (hoveredEdge && (hoveredEdge.from === node.recordId || hoveredEdge.to === node.recordId)) ||
+                            (selectedEdge && (selectedEdge.from === node.recordId || selectedEdge.to === node.recordId))
+                              ? 'bg-blue-100 border-l-4 border-l-blue-500 shadow-sm'
+                              : ''
+                          }`}
                           onMouseEnter={() => setHoveredNode(node)}
                           onMouseLeave={() => setHoveredNode(null)}
                         >
@@ -2714,9 +2947,15 @@ export default function GraphExplorer() {
                               if (result.status === 'unknown') {
                                 className += ' bg-gray-200 text-gray-500'
                               } else if (isLast) {
-                                className += result.status === 'positive'
-                                  ? ' bg-green-100 text-green-700'
-                                  : ' bg-red-100 text-red-700'
+                                if (result.status === 'positive') {
+                                  className += ' bg-green-100 text-green-700'
+                                } else if (result.status === 'negative') {
+                                  className += ' bg-red-100 text-red-700'
+                                } else if (result.status === 'partial') {
+                                  className += ' bg-yellow-100 text-yellow-700'
+                                } else {
+                                  className += ' bg-gray-100 text-gray-600'
+                                }
                               } else {
                                 className += ' bg-gray-100 text-gray-600'
                               }

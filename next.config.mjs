@@ -10,7 +10,7 @@ const nextConfig = {
     unoptimized: true,
   },
   // GitHub Pages configuration
-  output: 'export',
+  output: process.env.NODE_ENV === 'production' ? 'export' : undefined,
   trailingSlash: true,
   basePath: process.env.NODE_ENV === 'production' ? '/Graph-Explorer-One-Day' : '',
   assetPrefix: process.env.NODE_ENV === 'production' ? '/Graph-Explorer-One-Day' : '',

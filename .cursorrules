@@ -1,0 +1,63 @@
+# Graph Explorer Architecture Rules
+
+## Component Separation
+- NEVER mix visualization logic with business logic
+- NEVER mix rule evaluation with clustering algorithms
+- NEVER mix edge calculation with node positioning
+
+## File Organization
+- Graph visualization components go in: components/graph/
+- Match score/rule evaluation goes in: components/match-score/
+- Clustering algorithms go in: components/clustering/
+- Types go in: types/
+- Utilities go in: utils/
+- Hooks go in: hooks/
+
+## Data Flow
+- Graph visualization receives nodes and edges as props - NO calculations
+- Match score calculator receives nodes and rules, outputs edges
+- Clustering algorithm receives edges and nodes, outputs cluster assignments
+- Each component has a single responsibility
+
+## Import Rules
+- Graph components can ONLY import from: types, utils/graph-utils, hooks/useGraphData
+- Match score components can ONLY import from: types, utils/rule-utils, hooks/useMatchScore
+- Clustering components can ONLY import from: types, utils/clustering-utils, hooks/useClustering
+- NO cross-domain imports between these three areas
+
+## Function Naming
+- Graph functions: start with "render", "draw", "visualize"
+- Match score functions: start with "evaluate", "calculate", "score"
+- Clustering functions: start with "cluster", "assign", "optimize"
+
+## State Management
+- Graph state: useGraphData hook
+- Match score state: useMatchScore hook  
+- Clustering state: useClustering hook
+- NO shared state between domains unless explicitly designed
+
+## Component Responsibilities
+
+### Graph Visualization (components/graph/)
+- ONLY handles rendering and visual representation
+- Receives data as props, no calculations
+- Handles user interactions (hover, click, etc.)
+- Manages visual state (colors, sizes, positions)
+
+### Match Score (components/match-score/)
+- ONLY handles rule evaluation and edge calculation
+- NO visualization logic
+- Pure business logic for determining relationships
+- Outputs structured data for other components
+
+### Clustering Algorithm (components/clustering/)
+- ONLY handles clustering logic and constraints
+- NO visualization or rule evaluation
+- Pure algorithm for grouping nodes
+- Respects negative edge constraints
+
+## Code Quality
+- Each file should have a single, clear purpose
+- Functions should be pure when possible
+- No side effects in business logic components
+- Clear separation between data processing and presentation 
