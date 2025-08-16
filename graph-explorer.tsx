@@ -8,7 +8,7 @@ import rawData from './data.json';
 
 interface NodeData {
   recordId: string
-  uuid: string
+  clusterId?: number
   salutation?: string
   firstName?: string
   lastName?: string
@@ -464,7 +464,6 @@ export default function GraphExplorer() {
     // Create nodes with basic data
     const basicNodes = currentData.map((record: any, index: number) => ({
       recordId: record["Record-Id"] || `record-${index}`,
-      uuid: `cluster-${index}`,
       salutation: record["Salutation"] || "",
       firstName: record["First Name"] || "",
       lastName: record["Last Name"] || "",
@@ -1399,23 +1398,22 @@ export default function GraphExplorer() {
     }
   }, [nodeClusters, nodeData, edges, detectConstraintViolations])
   
-  // Create final node data with computed UUIDs based on clustering
+  // Create final node data with computed cluster assignments
   const finalNodeData = useMemo(() => {
-    if (!nodeClusters || nodeData.length === 0) return nodeData
+    if (!clusteringResult.assignments || nodeData.length === 0) return nodeData
     
-    // Update UUIDs based on clustering (this affects node colors)
     return nodeData.map(node => {
-      const clusterId = nodeClusters.get(node.recordId)
+      const clusterId = clusteringResult.assignments.get(node.recordId)
       return {
         ...node,
-        uuid: clusterId !== undefined ? `cluster-${clusterId}` : `cluster-unknown`
+        clusterId: clusterId !== undefined ? clusterId : -1
       }
     })
-  }, [nodeData, nodeClusters])
-  
-  // Get unique UUIDs for display purposes (now based on clustering)
-  const uniqueUUIDs = useMemo(() => {
-    return Array.from(new Set(finalNodeData.map((node) => node.uuid)))
+  }, [nodeData, clusteringResult.assignments])
+
+  // Get unique cluster IDs for display purposes
+  const uniqueClusterIds = useMemo(() => {
+    return Array.from(new Set(finalNodeData.map((node) => node.clusterId).filter(id => id !== -1)))
   }, [finalNodeData])
 
   // Helper functions for dynamic data creation

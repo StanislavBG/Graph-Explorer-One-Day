@@ -81,6 +81,11 @@ export const matchRules: MatchRule[] = [
         fields: ["phone"],
         children: [],
       },
+      {
+        name: "Rule-16",
+        fields: ["party"],
+        children: [],
+      },
     ],
   },
 ]

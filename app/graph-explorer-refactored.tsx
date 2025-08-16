@@ -7,9 +7,7 @@ import rawData from '../data.json'
 
 // Import our refactored components and hooks
 import { GraphVisualization } from '@/components/graph/GraphVisualization'
-import { useGraphData } from '@/hooks/useGraphData'
-import { useMatchScore } from '@/hooks/useMatchScore'
-import { useClustering } from '@/hooks/useClustering'
+import { useProcessedGraphData } from '@/hooks/useProcessedGraphData'
 import { GraphRenderConfig } from '@/types/graph'
 import { DataRecord, DataExample } from '@/types/common'
 import { matchRules } from '@/components/match-score/MatchRules'
@@ -17,13 +15,35 @@ import { matchRules } from '@/components/match-score/MatchRules'
 // Recursive component to render all match rules and their children
 function RenderMatchRules({ rules, level = 0 }: { rules: typeof matchRules; level?: number }) {
   return (
-    <div>
+    <div className="space-y-1">
       {rules.map((rule) => (
-        <div key={rule.name} style={{ marginLeft: level * 16 }}>
-          <span className={`font-semibold ${level === 0 ? 'text-gray-800' : level === 1 ? 'text-gray-700' : 'text-gray-500'}`}>{rule.name}:</span>
-          <span className={`ml-1 ${level === 0 ? 'text-gray-600' : level === 1 ? 'text-gray-500' : 'text-gray-400'}`}>{rule.fields.join(', ')}</span>
+        <div key={rule.name} className="group">
+          {/* Rule Header */}
+          <div 
+            className={`flex items-center gap-2 p-1 rounded text-sm ${
+              level === 0 
+                ? 'bg-blue-50 text-blue-700 font-medium' 
+                : level === 1 
+                ? 'bg-indigo-50 text-indigo-600'
+                : level === 2 
+                ? 'bg-purple-50 text-purple-600'
+                : level === 3 
+                ? 'bg-pink-50 text-pink-600'
+                : 'bg-gray-50 text-gray-600'
+            }`}
+            style={{ marginLeft: level * 16 }}
+          >
+            {/* Rule Fields */}
+            <span className="text-xs">
+              {rule.name}: {rule.fields.join(' + ')}
+            </span>
+          </div>
+          
+          {/* Children Rules */}
           {rule.children && rule.children.length > 0 && (
-            <RenderMatchRules rules={rule.children} level={level + 1} />
+            <div className="ml-2">
+              <RenderMatchRules rules={rule.children} level={level + 1} />
+            </div>
           )}
         </div>
       ))}
@@ -52,6 +72,301 @@ export default function GraphExplorerRefactored() {
   // Editable data state for all examples
   const [editableData, setEditableData] = useState<Array<DataRecord>>([])
 
+  // Helper functions to generate random realistic data
+  const generateRandomSalutation = () => {
+    const salutations = ["Mr.", "Ms.", "Dr.", "Prof.", "Mrs.", "Miss"]
+    return salutations[Math.floor(Math.random() * salutations.length)]
+  }
+
+  const generateRandomFirstName = () => {
+    const firstNames = ["James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael", "Linda", "David", "Elizabeth", "William", "Barbara", "Richard", "Susan", "Joseph", "Jessica", "Thomas", "Sarah", "Christopher", "Karen"]
+    return firstNames[Math.floor(Math.random() * firstNames.length)]
+  }
+
+  const generateRandomLastName = () => {
+    const lastNames = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin"]
+    return lastNames[Math.floor(Math.random() * lastNames.length)]
+  }
+
+  const generateRandomEmail = (firstName: string, lastName: string) => {
+    const domains = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "company.com", "business.org"]
+    const domain = domains[Math.floor(Math.random() * domains.length)]
+    const emailFormats = [
+      `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${domain}`,
+      `${firstName.toLowerCase()}${lastName.toLowerCase()}@${domain}`,
+      `${firstName.toLowerCase()}_${lastName.toLowerCase()}@${domain}`,
+      `${firstName.toLowerCase()}@${domain}`
+    ]
+    return emailFormats[Math.floor(Math.random() * emailFormats.length)]
+  }
+
+  const generateRandomPhone = () => {
+    const areaCodes = ["555", "444", "333", "222", "111"]
+    const areaCode = areaCodes[Math.floor(Math.random() * areaCodes.length)]
+    const prefix = Math.floor(Math.random() * 900) + 100
+    const line = Math.floor(Math.random() * 9000) + 1000
+    return `(${areaCode}) ${prefix}-${line}`
+  }
+
+  const generateRandomParty = () => {
+    const parties = ["Party-001", "Party-002", "Party-003", "Party-004", "Party-005", "Party-006", "Party-007", "Party-008", "Party-009", "Party-010"]
+    return parties[Math.floor(Math.random() * parties.length)]
+  }
+
+  // Row addition functions
+  const addEmptyRecord = () => {
+    const newId = `id-${String(dynamicRecords.length + 1).padStart(3, '0')}`
+    setDynamicRecords([...dynamicRecords, {
+      "Record-Id": newId,
+      "Salutation": "",
+      "First Name": "",
+      "Last Name": "",
+      "Email": "",
+      "Phone": "",
+      "Party": ""
+    }])
+  }
+
+  const addFullRecord = () => {
+    const newId = `id-${String(dynamicRecords.length + 1).padStart(3, '0')}`
+    const firstName = generateRandomFirstName()
+    const lastName = generateRandomLastName()
+    
+    // Try to reuse some existing data to create denser connections
+    const existingRecords = dynamicRecords.filter(r => r["Salutation"] || r["First Name"] || r["Last Name"] || r["Email"] || r["Phone"] || r["Party"])
+    let reusedFields: any = {}
+    
+    if (existingRecords.length > 0) {
+      const randomExisting = existingRecords[Math.floor(Math.random() * existingRecords.length)]
+      
+      // 50% chance to reuse salutation
+      if (Math.random() < 0.5 && randomExisting["Salutation"]) {
+        reusedFields.salutation = randomExisting["Salutation"]
+      } else {
+        reusedFields.salutation = generateRandomSalutation()
+      }
+      
+      // 60% chance to reuse party (creates good clustering)
+      if (Math.random() < 0.6 && randomExisting["Party"]) {
+        reusedFields.party = randomExisting["Party"]
+      } else {
+        reusedFields.party = generateRandomParty()
+      }
+      
+      // 40% chance to reuse phone (creates phone-based connections)
+      if (Math.random() < 0.4 && randomExisting["Phone"]) {
+        reusedFields.phone = randomExisting["Phone"]
+      } else {
+        reusedFields.phone = generateRandomPhone()
+      }
+    } else {
+      reusedFields.salutation = generateRandomSalutation()
+      reusedFields.party = generateRandomParty()
+      reusedFields.phone = generateRandomPhone()
+    }
+    
+    setDynamicRecords([...dynamicRecords, {
+      "Record-Id": newId,
+      "Salutation": reusedFields.salutation,
+      "First Name": firstName,
+      "Last Name": lastName,
+      "Email": generateRandomEmail(firstName, lastName),
+      "Phone": reusedFields.phone,
+      "Party": reusedFields.party
+    }])
+  }
+
+  const addPartialRecord = () => {
+    const newId = `id-${String(dynamicRecords.length + 1).padStart(3, '0')}`
+    const firstName = generateRandomFirstName()
+    const lastName = generateRandomLastName()
+    
+    // Try to reuse some existing data to create denser connections
+    const existingRecords = dynamicRecords.filter(r => r["Salutation"] || r["First Name"] || r["Last Name"] || r["Email"] || r["Phone"] || r["Party"])
+    let reusedFields: any = {}
+    
+    if (existingRecords.length > 0) {
+      const randomExisting = existingRecords[Math.floor(Math.random() * existingRecords.length)]
+      
+      // Higher chance to reuse party and phone for better clustering
+      if (randomExisting["Party"] && Math.random() < 0.7) {
+        reusedFields.party = randomExisting["Party"]
+      }
+      if (randomExisting["Phone"] && Math.random() < 0.6) {
+        reusedFields.phone = randomExisting["Phone"]
+      }
+      if (randomExisting["Salutation"] && Math.random() < 0.5) {
+        reusedFields.salutation = randomExisting["Salutation"]
+      }
+    }
+    
+    // Randomly fill some fields, leave others empty
+    const fields = ['salutation', 'firstName', 'lastName', 'email', 'phone', 'party']
+    const numFieldsToFill = Math.floor(Math.random() * 4) + 2 // Fill 2-5 fields
+    
+    const record: any = { "Record-Id": newId }
+    fields.forEach(field => {
+      if (Math.random() < numFieldsToFill / fields.length) {
+        switch(field) {
+          case 'salutation':
+            record["Salutation"] = reusedFields.salutation || generateRandomSalutation()
+            break
+          case 'firstName':
+            record["First Name"] = firstName
+            break
+          case 'lastName':
+            record["Last Name"] = lastName
+            break
+          case 'email':
+            record["Email"] = generateRandomEmail(firstName, lastName)
+            break
+          case 'phone':
+            record["Phone"] = reusedFields.phone || generateRandomPhone()
+            break
+          case 'party':
+            record["Party"] = reusedFields.party || generateRandomParty()
+            break
+        }
+      } else {
+        record[field === 'salutation' ? "Salutation" : 
+               field === 'firstName' ? "First Name" : 
+               field === 'lastName' ? "Last Name" : 
+               field === 'email' ? "Email" : 
+               field === 'phone' ? "Phone" : "Party"] = ""
+      }
+    })
+    
+    setDynamicRecords([...dynamicRecords, record])
+  }
+
+  // Functions to add records to existing examples
+  const addFullRecordToExample = () => {
+    const newId = `R${String(editableData.length + 1)}`
+    const firstName = generateRandomFirstName()
+    const lastName = generateRandomLastName()
+    
+    // Try to reuse some existing data from the example to create denser connections
+    const existingRecords = editableData.filter(r => r["Salutation"] || r["First Name"] || r["Last Name"] || r["Email"] || r["Phone"] || r["Party"])
+    let reusedFields: any = {}
+    
+    if (existingRecords.length > 0) {
+      const randomExisting = existingRecords[Math.floor(Math.random() * existingRecords.length)]
+      
+      // 50% chance to reuse salutation
+      if (Math.random() < 0.5 && randomExisting["Salutation"]) {
+        reusedFields.salutation = randomExisting["Salutation"]
+      } else {
+        reusedFields.salutation = generateRandomSalutation()
+      }
+      
+      // 60% chance to reuse party (creates good clustering)
+      if (Math.random() < 0.6 && randomExisting["Party"]) {
+        reusedFields.party = randomExisting["Party"]
+      } else {
+        reusedFields.party = generateRandomParty()
+      }
+      
+      // 40% chance to reuse phone (creates phone-based connections)
+      if (Math.random() < 0.4 && randomExisting["Phone"]) {
+        reusedFields.phone = randomExisting["Phone"]
+      } else {
+        reusedFields.phone = generateRandomPhone()
+      }
+    } else {
+      reusedFields.salutation = generateRandomSalutation()
+      reusedFields.party = generateRandomParty()
+      reusedFields.phone = generateRandomPhone()
+    }
+    
+    const newRecord = {
+      "Record-Id": newId,
+      "Salutation": reusedFields.salutation,
+      "First Name": firstName,
+      "Last Name": lastName,
+      "Email": generateRandomEmail(firstName, lastName),
+      "Phone": reusedFields.phone,
+      "Party": reusedFields.party
+    }
+    
+    setEditableData([...editableData, newRecord])
+  }
+
+  const addPartialRecordToExample = () => {
+    const newId = `R${String(editableData.length + 1)}`
+    const firstName = generateRandomFirstName()
+    const lastName = generateRandomLastName()
+    
+    // Try to reuse some existing data from the example to create denser connections
+    const existingRecords = editableData.filter(r => r["Salutation"] || r["First Name"] || r["Last Name"] || r["Email"] || r["Phone"] || r["Party"])
+    let reusedFields: any = {}
+    
+    if (existingRecords.length > 0) {
+      const randomExisting = existingRecords[Math.floor(Math.random() * existingRecords.length)]
+      
+      // Higher chance to reuse party and phone for better clustering
+      if (randomExisting["Party"] && Math.random() < 0.7) {
+        reusedFields.party = randomExisting["Party"]
+      }
+      if (randomExisting["Phone"] && Math.random() < 0.6) {
+        reusedFields.phone = randomExisting["Phone"]
+      }
+      if (randomExisting["Salutation"] && Math.random() < 0.5) {
+        reusedFields.salutation = randomExisting["Salutation"]
+      }
+    }
+    
+    // Randomly fill some fields, leave others empty
+    const fields = ['salutation', 'firstName', 'lastName', 'email', 'phone', 'party']
+    const numFieldsToFill = Math.floor(Math.random() * 4) + 2 // Fill 2-5 fields
+    
+    const record: any = { "Record-Id": newId }
+    fields.forEach(field => {
+      if (Math.random() < numFieldsToFill / fields.length) {
+        switch(field) {
+          case 'salutation':
+            record["Salutation"] = reusedFields.salutation || generateRandomSalutation()
+            break
+          case 'firstName':
+            record["First Name"] = firstName
+            break
+          case 'lastName':
+            record["Last Name"] = lastName
+            break
+          case 'email':
+            record["Email"] = reusedFields.phone || generateRandomEmail(firstName, lastName)
+            break
+          case 'phone':
+            record["Phone"] = reusedFields.phone || generateRandomPhone()
+            break
+          case 'party':
+            record["Party"] = reusedFields.party || generateRandomParty()
+            break
+        }
+      } else {
+        record[field === 'salutation' ? "Salutation" : 
+               field === 'firstName' ? "First Name" : 
+               field === 'lastName' ? "Last Name" : 
+               field === 'email' ? "Email" : 
+               field === 'phone' ? "Phone" : "Party"] = ""
+      }
+    })
+    
+    setEditableData([...editableData, record])
+  }
+
+  const addEmptyRecordToExample = () => {
+    const newId = `R${String(editableData.length + 1)}`
+    setEditableData([...editableData, {
+      "Record-Id": newId,
+      "Salutation": "",
+      "First Name": "",
+      "Last Name": "",
+      "Email": "",
+      "Phone": "",
+      "Party": ""
+    }])
+  }
+
   useEffect(() => {
     setIsClient(true)
   }, [])
@@ -79,35 +394,59 @@ export default function GraphExplorerRefactored() {
     setHoveredEdge(null)
     setSelectedNode(null)
     setHoveredNode(null)
-  }, [selectedDataExample])
+  }, [selectedDataExample, rawData])
+
+  // Initialize with first example data on component mount
+  useEffect(() => {
+    if (selectedDataExample === 0 && rawData[0] && editableData.length === 0) {
+      const exampleData = rawData[0].data
+      const editableRecords = exampleData.map((record: any) => ({
+        "Record-Id": record["Record-Id"] || "",
+        "Salutation": record["Salutation"] || "",
+        "First Name": record["First Name"] || "",
+        "Last Name": record["Last Name"] || "",
+        "Email": record["Email"] || "",
+        "Phone": record["Phone"] || "",
+        "Party": record["Party"] || "",
+      }))
+      setEditableData(editableRecords)
+    }
+  }, [selectedDataExample, rawData, editableData.length])
 
   // Get the currently selected data set
   const currentData = useMemo(() => {
-    return selectedDataExample === -1 
-    ? dynamicRecords
-      : (editableData.length > 0 ? editableData : rawData[selectedDataExample]?.data || [])
+    if (selectedDataExample === -1) {
+      return dynamicRecords
+    } else {
+      // If an example is selected, use editableData if it has content, otherwise fall back to raw data
+      if (editableData.length > 0) {
+        return editableData
+      } else if (rawData[selectedDataExample]?.data) {
+        return rawData[selectedDataExample].data
+      } else {
+        return []
+      }
+    }
   }, [selectedDataExample, dynamicRecords, editableData, rawData])
 
-  // Use our refactored hooks
-  const { nodeData, finalNodeData, layout } = useGraphData(
+  // Use our unified hook that manages the complete data flow
+  const { 
+    nodes: finalNodeData, 
+    edges, 
+    unifiedEdges, 
+    layout,
+    clusteringResult,
+    uniqueClusterIds,
+    getNodeColor,
+    nodeClusters,
+    detectConstraintViolations
+  } = useProcessedGraphData(
     currentData, 
     selectedDataExample, 
     graphHeight, 
     leftPanelWidth, 
     rightPanelWidth
   )
-
-  const { edges, unifiedEdges } = useMatchScore(nodeData)
-
-  const { 
-    clusteringResult, 
-    finalNodeData: clusteredNodeData, 
-    uniqueUUIDs, 
-    getNodeColor, 
-    nodeClusters, 
-    clusteringQualityMetrics, 
-    detectConstraintViolations 
-  } = useClustering(nodeData, edges)
 
   // Helper function to get node data by record ID
   const getNodeByRecordId = (recordId: string) => {
@@ -123,7 +462,7 @@ export default function GraphExplorerRefactored() {
   // Graph render configuration
   const graphConfig: GraphRenderConfig = {
     nodeRadius: 30,
-    edgeStrokeWidth: 4,
+            edgeStrokeWidth: 3, // Reduced from 6 to 3 for thinner default edges
     hoverScale: 1.17,
     selectionScale: 1.17,
     animationDuration: 200
@@ -131,8 +470,10 @@ export default function GraphExplorerRefactored() {
 
   // Event handlers
   const handleNodeHover = (node: any) => {
-    setHoveredNode(node)
-    setHoveredEdge(null)
+    setHoveredNode(node?.recordId || null)
+    // Don't clear hoveredEdge - let edges maintain their hover state
+    // This allows edges to show hover effects when connected to hovered nodes
+    // Both node hover and edge hover can work simultaneously for better UX
   }
 
   const handleNodeClick = (node: any) => {
@@ -142,11 +483,16 @@ export default function GraphExplorerRefactored() {
 
   const handleEdgeHover = (edge: any) => {
     setHoveredEdge(edge)
-    setHoveredNode(null)
+    // Don't clear hoveredNode - let nodes maintain their hover state
+    // This allows both node and edge hover effects to work together
+    // Users can hover over nodes to see connected edges, then hover over edges for details
   }
 
   const handleEdgeClick = (edge: any) => {
+    // Set the selected edge
     setSelectedEdge(edge)
+    
+    // Clear selected node
     setSelectedNode(null)
   }
 
@@ -205,6 +551,15 @@ export default function GraphExplorerRefactored() {
             <p className="text-gray-600 mt-0.5 text-sm">Clean Architecture - Separated Concerns</p>
           </div>
 
+          {/* Match Rules Hierarchy - Always Visible */}
+          <Card className="border-blue-200 bg-blue-50">
+            <CardContent className="p-1">
+              <div className="bg-white rounded border border-blue-200">
+                <RenderMatchRules rules={matchRules} />
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Statistics */}
           <Card>
             <CardHeader className="pb-2">
@@ -213,43 +568,55 @@ export default function GraphExplorerRefactored() {
             <CardContent className="space-y-1">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Total Nodes:</span>
-                <span className="font-medium">{nodeData.length}</span>
+                <span className="font-medium">{finalNodeData.length}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Total Edges:</span>
-                <span className="font-medium">{edges.length}</span>
+                <span className="font-medium">{unifiedEdges.length}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Total Clusters:</span>
-                <span className="font-medium">{clusteringResult.clusterGroups.size}</span>
+                <span className="font-medium">{uniqueClusterIds.length}</span>
               </div>
             </CardContent>
           </Card>
 
-          {/* Clustering Quality */}
-          {clusteringQualityMetrics && (
-            <Card className="border-green-200 bg-green-50">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base text-green-700">📊 Clustering Quality</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="text-sm text-green-800">
-                  <div className="flex justify-between">
-                    <span>Positive within clusters:</span>
-                    <span>{clusteringQualityMetrics.positiveWithinCluster}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Negative between clusters:</span>
-                    <span>{clusteringQualityMetrics.negativeBetweenClusters}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Constraint violations:</span>
-                    <span>{clusteringQualityMetrics.constraintViolations}</span>
-                  </div>
+          {/* Clustering Results */}
+          <Card className="border-green-200 bg-green-50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base text-green-700">🎯 Clustering Results</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="text-center">
+                  <div className="font-bold text-lg text-green-600">{uniqueClusterIds.length}</div>
+                  <div className="text-green-700">Clusters</div>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+                <div className="text-center">
+                  <div className="font-bold text-lg text-green-600">{finalNodeData.length}</div>
+                  <div className="text-green-700">Nodes</div>
+                </div>
+              </div>
+              
+              <div className="text-xs text-green-600">
+                <div className="font-medium mb-1">Cluster Distribution:</div>
+                <div className="space-y-1">
+                  {(() => {
+                    const clusterCounts: Record<number, number> = {}
+                    finalNodeData.forEach((node) => {
+                      clusterCounts[node.clusterId] = (clusterCounts[node.clusterId] || 0) + 1
+                    })
+                    return Object.entries(clusterCounts).map(([clusterId, count]) => (
+                      <div key={clusterId} className="flex justify-between">
+                        <span>Cluster {clusterId}:</span>
+                        <span className="font-medium">{count} nodes</span>
+                      </div>
+                    ))
+                  })()}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Constraint Violations */}
           {detectConstraintViolations.length > 0 && (
@@ -267,7 +634,7 @@ export default function GraphExplorerRefactored() {
                       {violation.node1} ↔ {violation.node2}
                     </div>
                     <div className="text-xs text-red-600">
-                      Both in Cluster {violation.cluster1 + 1} | 
+                      Both in Cluster {violation.cluster1} | 
                       Negative: {violation.negativeEdgeType}
                     </div>
                   </div>
@@ -289,9 +656,11 @@ export default function GraphExplorerRefactored() {
             minHeight: '600px'
           }}
         >
+
+          
           <GraphVisualization
-            nodes={clusteredNodeData}
-            edges={edges}
+            nodes={finalNodeData}
+            edges={unifiedEdges}
             unifiedEdges={unifiedEdges}
             layout={layout}
             config={graphConfig}
@@ -300,6 +669,10 @@ export default function GraphExplorerRefactored() {
             onEdgeHover={handleEdgeHover}
             onEdgeClick={handleEdgeClick}
             onMouseLeave={handleMouseLeave}
+            onEmptyAreaClick={() => {
+              setSelectedEdge(null)
+              setHoveredEdge(null)
+            }}
             hoveredNode={hoveredNode}
             selectedNode={selectedNode}
             hoveredEdge={hoveredEdge}
@@ -311,75 +684,261 @@ export default function GraphExplorerRefactored() {
         {/* Data Table Area */}
         <div 
           key={`data-table-${selectedDataExample}`} 
-          className="w-full bg-white border-t border-gray-200 overflow-x-auto mt-4 pb-4"
-          style={{ fontSize: '12px' }}
+          className="w-full bg-white border-t border-gray-200 overflow-x-auto mt-2 pb-2"
+          style={{ fontSize: '11px', lineHeight: '1.2' }}
         >
           {/* Data Example Selector */}
           <div key={`data-selector-${selectedDataExample}`} className="p-1.5 border-b border-gray-200 bg-gray-50">
-            <div className="flex items-center gap-3">
-              <label className="text-xs font-medium text-gray-700">Example:</label>
-              <select
-                value={selectedDataExample}
-                onChange={(e) => {
-                  const newExample = Number(e.target.value)
-                  setSelectedDataExample(newExample)
-                  setSelectedEdge(null)
-                  setHoveredEdge(null)
-                  setSelectedNode(null)
-                  setHoveredNode(null)
-                }}
-                className="px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value={-1} className="font-semibold text-blue-600">🆕 NEW - Custom Data</option>
-                {rawData.map((example, index) => (
-                  <option key={index} value={index}>
-                    {example.name}
-                  </option>
-                ))}
-              </select>
-              <div className="text-xs text-gray-500">
-                {currentData.length} records
+            <div className="flex items-center justify-between">
+              {/* Left side: Example selector and record count */}
+              <div className="flex items-center gap-3">
+                <label className="text-xs font-medium text-gray-700">Example:</label>
+                <select
+                  value={selectedDataExample}
+                  onChange={(e) => {
+                    const newExample = Number(e.target.value)
+                    setSelectedDataExample(newExample)
+                    setSelectedEdge(null)
+                    setHoveredEdge(null)
+                    setSelectedNode(null)
+                    setHoveredNode(null)
+                  }}
+                  className="px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value={-1} className="font-semibold text-blue-600">🆕 NEW - Custom Data</option>
+                  {rawData.map((example, index) => (
+                    <option key={index} value={index}>
+                      {example.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="text-xs text-gray-500">
+                  {currentData.length} records
+                </div>
+              </div>
+              
+              {/* Right side: Add row buttons and Reset All */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-blue-700 font-medium">
+                  💡 Add:
+                </span>
+                <button
+                  onClick={selectedDataExample === -1 ? addFullRecord : addFullRecordToExample}
+                  className="px-2 py-0.5 text-xs bg-green-500 hover:bg-green-600 text-white rounded transition-colors"
+                  title={selectedDataExample === -1 
+                    ? "Add a record with all fields filled with random realistic data"
+                    : "Add a record with all fields filled to this example"
+                  }
+                >
+                  +Full
+                </button>
+                <button
+                  onClick={selectedDataExample === -1 ? addPartialRecord : addPartialRecordToExample}
+                  className="px-2 py-0.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
+                  title={selectedDataExample === -1 
+                    ? "Add a record with some fields randomly filled, others empty"
+                    : "Add a record with some fields randomly filled to this example"
+                  }
+                >
+                  +Partial
+                </button>
+                <button
+                  onClick={selectedDataExample === -1 ? addEmptyRecord : addEmptyRecordToExample}
+                  className="px-2 py-0.5 text-xs bg-gray-500 hover:bg-gray-600 text-white rounded transition-colors"
+                  title={selectedDataExample === -1 
+                    ? "Add an empty record for manual entry"
+                    : "Add an empty record to this example"
+                  }
+                >
+                  +Empty
+                </button>
+                <span className="text-xs text-gray-500 mx-1">|</span>
+                <button
+                  onClick={() => {
+                    // Reset all edited data to original
+                    setEditableData([...currentData])
+                    setDynamicRecords([...currentData])
+                  }}
+                  className="px-2 py-0.5 text-xs bg-gray-500 hover:bg-gray-600 text-white rounded transition-colors"
+                  title="Reset all changes to original data"
+                >
+                  🔄 Reset All
+                </button>
               </div>
             </div>
           </div>
 
           {/* Data Table */}
+          
           <table className="min-w-full text-[10px] text-left">
             <thead className="bg-gray-100">
               <tr>
-                <th className="px-1 py-0.5 border text-gray-600">Record ID</th>
-                <th className="px-1 py-0.5 border text-gray-600">UUID</th>
-                <th className="px-1 py-0.5 border text-blue-700">Cluster ID</th>
-                <th className="px-1 py-0.5 border text-green-700">Salutation</th>
-                <th className="px-1 py-0.5 border text-green-700">First Name</th>
-                <th className="px-1 py-0.5 border text-green-700">Last Name</th>
-                <th className="px-1 py-0.5 border text-green-700">Email</th>
-                <th className="px-1 py-0.5 border text-green-700">Phone</th>
-                <th className="px-1 py-0.5 border text-green-700">Party</th>
+                <th className="px-3 py-1 border text-gray-600 text-center">Record ID</th>
+                <th className="px-3 py-1 border text-blue-700 text-center">Cluster ID</th>
+                <th className="px-3 py-1 border text-green-700 text-center">Salutation</th>
+                <th className="px-3 py-1 border text-green-700 text-center">First Name</th>
+                <th className="px-3 py-1 border text-green-700 text-center">Last Name</th>
+                <th className="px-3 py-1 border text-blue-700 text-center">Email</th>
+                <th className="px-3 py-1 border text-blue-700 text-center">Phone</th>
+                <th className="px-3 py-1 border text-purple-700 text-center">Party</th>
               </tr>
             </thead>
             <tbody>
-              {clusteredNodeData.map((node, index) => (
+              {editableData.map((node, index) => (
                 <tr
-                  key={node.recordId}
-                  className={`hover:bg-gray-50 transition-all duration-200 ${
-                    (hoveredEdge && (hoveredEdge.from === node.recordId || hoveredEdge.to === node.recordId)) ||
-                    (selectedEdge && (selectedEdge.from === node.recordId || selectedEdge.to === node.recordId))
+                  key={node["Record-Id"]}
+                  className={`hover:bg-gray-50 transition-all duration-200 cursor-pointer ${
+                    (hoveredEdge && (hoveredEdge.from === node["Record-Id"] || hoveredEdge.to === node["Record-Id"])) ||
+                    (selectedEdge && (selectedEdge.from === node["Record-Id"] || selectedEdge.to === node["Record-Id"])) ||
+                    (hoveredNode === node["Record-Id"])
                       ? 'bg-blue-100 border-l-4 border-l-blue-500 shadow-sm'
                       : ''
                   }`}
-                  onMouseEnter={() => setHoveredNode(node)}
+                  onMouseEnter={() => setHoveredNode(node["Record-Id"])}
                   onMouseLeave={() => setHoveredNode(null)}
                 >
-                  <td className="px-1 py-0.5 border font-mono bg-gray-100 text-gray-600">{node.recordId}</td>
-                  <td className="px-1 py-0.5 border font-mono bg-gray-100 text-gray-600">{node.uuid || "—"}</td>
-                  <td className="px-1 py-0.5 border font-mono bg-blue-50 text-blue-700">{node.clusterId !== undefined && node.clusterId !== -1 ? node.clusterId : "—"}</td>
-                  <td className="px-1 py-0.5 border">{node.salutation || "—"}</td>
-                  <td className="px-1 py-0.5 border">{node.firstName || "—"}</td>
-                  <td className="px-1 py-0.5 border">{node.lastName || "—"}</td>
-                  <td className="px-1 py-0.5 border break-all">{node.email || "—"}</td>
-                  <td className="px-1 py-0.5 border">{node.phone || "—"}</td>
-                  <td className="px-1 py-0.5 border">{node.party || "—"}</td>
+                  <td className="px-3 py-1 border font-mono bg-gray-100 text-gray-600 text-center">{node["Record-Id"]}</td>
+                  <td className="px-3 py-1 border font-mono bg-blue-50 text-blue-700 text-center">—</td>
+                  
+                  {/* Editable Salutation */}
+                  <td className="px-3 py-1 border text-center">
+                    <input
+                      type="text"
+                      value={node["Salutation"] || ""}
+                      onChange={(e) => {
+                        const newData = [...editableData]
+                        newData[index] = { ...newData[index], "Salutation": e.target.value }
+                        setEditableData(newData)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          // Save changes and update pipeline
+                          const newData = [...editableData]
+                          newData[index] = { ...newData[index], "Salutation": e.currentTarget.value }
+                          setEditableData(newData)
+                          setDynamicRecords(newData)
+                        }
+                      }}
+                      className="w-full text-center text-[10px] border-0 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-transparent"
+                      placeholder="—"
+                    />
+                  </td>
+                  
+                  {/* Editable First Name */}
+                  <td className="px-3 py-1 border text-center">
+                    <input
+                      type="text"
+                      value={node["First Name"] || ""}
+                      onChange={(e) => {
+                        const newData = [...editableData]
+                        newData[index] = { ...newData[index], "First Name": e.target.value }
+                        setEditableData(newData)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const newData = [...editableData]
+                          newData[index] = { ...newData[index], "First Name": e.currentTarget.value }
+                          setEditableData(newData)
+                          setDynamicRecords(newData)
+                        }
+                      }}
+                      className="w-full text-center text-[10px] border-0 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-transparent"
+                      placeholder="—"
+                    />
+                  </td>
+                  
+                  {/* Editable Last Name */}
+                  <td className="px-3 py-1 border text-center">
+                    <input
+                      type="text"
+                      value={node["Last Name"] || ""}
+                      onChange={(e) => {
+                        const newData = [...editableData]
+                        newData[index] = { ...newData[index], "Last Name": e.target.value }
+                        setEditableData(newData)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const newData = [...editableData]
+                          newData[index] = { ...newData[index], "Last Name": e.currentTarget.value }
+                          setEditableData(newData)
+                          setDynamicRecords(newData)
+                        }
+                      }}
+                      className="w-full text-center text-[10px] border-0 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-transparent"
+                      placeholder="—"
+                    />
+                  </td>
+                  
+                  {/* Editable Email */}
+                  <td className="px-3 py-1 border text-center">
+                    <input
+                      type="email"
+                      value={node["Email"] || ""}
+                      onChange={(e) => {
+                        const newData = [...editableData]
+                        newData[index] = { ...newData[index], "Email": e.target.value }
+                        setEditableData(newData)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const newData = [...editableData]
+                          newData[index] = { ...newData[index], "Email": e.currentTarget.value }
+                          setEditableData(newData)
+                          setDynamicRecords(newData)
+                        }
+                      }}
+                      className="w-full text-center text-[10px] border-0 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-transparent"
+                      placeholder="—"
+                    />
+                  </td>
+                  
+                  {/* Editable Phone */}
+                  <td className="px-3 py-1 border text-center">
+                    <input
+                      type="tel"
+                      value={node["Phone"] || ""}
+                      onChange={(e) => {
+                        const newData = [...editableData]
+                        newData[index] = { ...newData[index], "Phone": e.target.value }
+                        setEditableData(newData)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const newData = [...editableData]
+                          newData[index] = { ...newData[index], "Phone": e.currentTarget.value }
+                          setEditableData(newData)
+                          setDynamicRecords(newData)
+                        }
+                      }}
+                      className="w-full text-center text-[10px] border-0 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-transparent"
+                      placeholder="—"
+                    />
+                  </td>
+                  
+                  {/* Editable Party */}
+                  <td className="px-3 py-1 border text-center">
+                    <input
+                      type="text"
+                      value={node["Party"] || ""}
+                      onChange={(e) => {
+                        const newData = [...editableData]
+                        newData[index] = { ...newData[index], "Party": e.target.value }
+                        setEditableData(newData)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const newData = [...editableData]
+                          newData[index] = { ...newData[index], "Party": e.currentTarget.value }
+                          setEditableData(newData)
+                          setDynamicRecords(newData)
+                        }
+                      }}
+                      className="w-full text-center text-[10px] border-0 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-transparent"
+                      placeholder="—"
+                    />
+                  </td>
+                  
                 </tr>
               ))}
             </tbody>
@@ -442,11 +1001,6 @@ export default function GraphExplorerRefactored() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid grid-cols-3 gap-2 text-sm">
-                  <span className="font-medium text-gray-600">UUID:</span>
-                  <span className="col-span-2 font-mono text-xs">{(selectedNode || hoveredNode)!.uuid}</span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 text-sm">
                   <span className="font-medium text-gray-600">Cluster ID:</span>
                   <span className="col-span-2 font-mono text-xs text-blue-700">{(selectedNode || hoveredNode)!.clusterId !== undefined && (selectedNode || hoveredNode)!.clusterId !== -1 ? (selectedNode || hoveredNode)!.clusterId : "—"}</span>
                 </div>
@@ -502,159 +1056,212 @@ export default function GraphExplorerRefactored() {
                     className="w-4 h-1 rounded"
                     style={{ backgroundColor: '#d1d5db' }}
                   />
-                  {(selectedEdge || hoveredEdge)!.from} ↔ {(selectedEdge || hoveredEdge)!.to}
+                  {(() => {
+                    const currentEdge = selectedEdge || hoveredEdge
+                    if (!currentEdge) return "—"
+                    return (
+                      <div className="flex flex-col">
+                        <div className="text-sm text-gray-500 mb-1">
+                          {selectedDataExample >= 0 ? `Example-${String(selectedDataExample + 1).padStart(2, '0')} (Data)` : 'Dynamic Data'}
+                        </div>
+                        <div>{currentEdge.from} ↔ {currentEdge.to}</div>
+                      </div>
+                    )
+                  })()}
                   {selectedEdge && <span className="text-sm font-normal text-gray-400">(Selected)</span>}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="text-sm">
-                  <div className="flex justify-between">
+                {/* Enhanced Match Score Display */}
+                <div className="text-sm space-y-3">
+                  <div className="flex justify-between items-center">
                     <span className="font-medium text-gray-600">Match Score:</span>
-                    <span className={`font-bold ${
-                      (selectedEdge || hoveredEdge)!.matchScore > 0 ? 'text-green-600' : 
-                      (selectedEdge || hoveredEdge)!.matchScore < 0 ? 'text-red-600' : 'text-gray-600'
+                    <span className={`font-bold text-lg ${
+                      (() => {
+                        const currentEdge = selectedEdge || hoveredEdge
+                        if (!currentEdge) return 'text-gray-600'
+                        return currentEdge.matchScore > 0 ? 'text-green-600' : 
+                               currentEdge.matchScore < 0 ? 'text-red-600' : 'text-gray-600'
+                      })()
                     }`}>
-                      {(selectedEdge || hoveredEdge)!.matchScore.toFixed(3)}
+                      {(() => {
+                        const currentEdge = selectedEdge || hoveredEdge
+                        if (!currentEdge) return "—"
+                        return currentEdge.matchScore.toFixed(3)
+                      })()}
                     </span>
                   </div>
                   
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-600">Edge Type:</span>
-                    <span className={`font-bold ${
-                      (selectedEdge || hoveredEdge)!.type === 'positive' ? 'text-green-600' : 
-                      (selectedEdge || hoveredEdge)!.type === 'negative' ? 'text-red-600' : 'text-gray-600'
-                    }`}>
-                      {(selectedEdge || hoveredEdge)!.type.toUpperCase()}
-                    </span>
-                  </div>
+
                 </div>
 
                 <hr className="my-3" />
 
-                {/* Rule Evaluation Results */}
-                {(selectedEdge || hoveredEdge)!.rulesUsed && (selectedEdge || hoveredEdge)!.rulesUsed.length > 0 && (
-                  <>
-                    <div className="text-xs font-semibold text-gray-700 mb-2">Rule Evaluation Paths:</div>
-                    {(selectedEdge || hoveredEdge)!.rulesUsed.map((rulePath: string[], idx: number) => (
-                      <div key={idx} className="flex flex-row items-center space-x-1 mb-2">
-                        {rulePath.map((rule: string, i: number) => {
-                          const isLast = i === rulePath.length - 1
-                          let className = 'px-1.5 py-0.5 rounded font-semibold text-xs'
-                          
-                          // Color coding based on rule level and evaluation
-                          if (isLast) {
-                            if ((selectedEdge || hoveredEdge)!.type === 'positive') {
-                              className += ' bg-green-100 text-green-700'
-                            } else if ((selectedEdge || hoveredEdge)!.type === 'negative') {
-                              className += ' bg-red-100 text-red-700'
-                            } else {
-                              className += ' bg-gray-100 text-gray-600'
-                            }
-                          } else {
-                            className += ' bg-gray-100 text-gray-600'
-                          }
-                          
-                          return (
-                            <React.Fragment key={rule + '-' + i}>
-                              <span
-                                className={className}
-                                style={{ minWidth: 44, textAlign: 'center', display: 'inline-block' }}
-                                title={`Rule: ${rule} - Level ${i + 1}`}
-                              >
-                                {rule}
-                              </span>
-                              {i < rulePath.length - 1 && (
-                                <span className="text-gray-400 text-[10px] font-bold mx-0.5">→</span>
-                              )}
-                            </React.Fragment>
-                          )
-                        })}
-                      </div>
-                    ))}
-                  </>
-                )}
+                                {/* Rule Evaluation Tree - WHY the score is what it is */}
+                {(() => {
+                  const currentEdge = selectedEdge || hoveredEdge
+                  if (!currentEdge || !currentEdge.results || currentEdge.results.length === 0) return null
+                  
+                  return (
+                    <div className="p-2 bg-blue-50 rounded border border-blue-200">
+                      {currentEdge.results.map((result: any, resultIdx: number) => {
+                        if (!result.rulesUsed || result.rulesUsed.length === 0) return null
+                        
+                        const rulePath = result.rulesUsed[0]
+                        
+                        return (
+                          <div key={resultIdx} className="flex items-center space-x-1 mb-1 flex-wrap">
+                            {rulePath.map((rule: string, ruleIdx: number) => {
+                              // Find the individual status for this specific rule
+                              const individualStatus = result.individualRuleStatuses?.find(
+                                (ruleStatus: any) => ruleStatus.ruleName === rule
+                              )?.status || result.status
+                              
+                              return (
+                                <div key={ruleIdx} className="flex items-center">
+                                  {/* Rule Box */}
+                                  <div 
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                      individualStatus === 'positive' ? 'bg-green-100 text-green-700' :
+                                      individualStatus === 'negative' ? 'bg-red-100 text-red-700' :
+                                      'bg-gray-100 text-gray-600'
+                                    }`}
+                                  >
+                                    {rule}
+                                  </div>
+                                  {ruleIdx < rulePath.length - 1 && (
+                                    <div className="mx-0.5 text-blue-400 text-[10px]">→</div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
 
-                {/* Matching and Non-Matching Fields */}
-                <div className="text-xs">
-                  {(selectedEdge || hoveredEdge)!.matchingFields && (selectedEdge || hoveredEdge)!.matchingFields.length > 0 && (
-                    <div className="mb-2">
-                      <div className="font-medium text-green-600 mb-1">✓ Matching Fields:</div>
-                      <div className="flex flex-wrap gap-1">
-                        {(selectedEdge || hoveredEdge)!.matchingFields.map((field: string, idx: number) => (
-                          <span key={idx} className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">
-                            {field}
-                          </span>
-                        ))}
+                {/* Final Match Score Calculation */}
+                {(() => {
+                  const currentEdge = selectedEdge || hoveredEdge
+                  if (!currentEdge || !currentEdge.results || currentEdge.results.length === 0) return null
+                  
+                  // Calculate summary statistics
+                  const positiveResults = currentEdge.results.filter((r: any) => r.status === 'positive')
+                  const negativeResults = currentEdge.results.filter((r: any) => r.status === 'negative')
+                  
+                  // Calculate weighted scores
+                  const positiveScore = positiveResults.reduce((sum: number, result: any) => {
+                    const ruleLevel = result.rulesUsed?.[0]?.length || 1
+                    const weight = ruleLevel === 1 ? 1.0 : ruleLevel === 2 ? 0.75 : ruleLevel === 3 ? 0.5 : ruleLevel === 4 ? 0.25 : 0.1
+                    return sum + weight
+                  }, 0)
+                  
+                  const negativeScore = negativeResults.reduce((sum: number, result: any) => {
+                    const ruleLevel = result.rulesUsed?.[0]?.length || 1
+                    const weight = ruleLevel === 1 ? 1.0 : ruleLevel === 2 ? 0.75 : ruleLevel === 3 ? 0.5 : ruleLevel === 4 ? 0.25 : 0.1
+                    return sum + weight
+                  }, 0)
+                  
+                  return (
+                    <div className="mt-2 p-2 bg-gray-50 rounded border border-gray-200 text-xs">
+                      <div className="font-medium text-gray-700 mb-1">Final Match Score Calculation:</div>
+                      <div className="text-gray-600 space-y-0.5">
+                        <div>• <strong>Positive Rules:</strong> {positiveResults.map((r: any) => r.rulesUsed?.[0]?.[0] || 'Unknown').join(', ')}</div>
+                        <div>• <strong>Negative Rules:</strong> {negativeResults.map((r: any) => r.rulesUsed?.[0]?.[0] || 'Unknown').join(', ') || 'None'}</div>
+                        <div>• <strong>Net Score:</strong> {positiveScore.toFixed(2)} - {negativeScore.toFixed(2)} = {(positiveScore - negativeScore).toFixed(2)}</div>
+                        <div>• <strong>Edge Type:</strong> {(positiveScore - negativeScore) > 0 ? 'POSITIVE' : (positiveScore - negativeScore) < 0 ? 'NEGATIVE' : 'NEUTRAL'}</div>
                       </div>
                     </div>
-                  )}
-
-                  {(selectedEdge || hoveredEdge)!.nonMatchingFields && (selectedEdge || hoveredEdge)!.nonMatchingFields.length > 0 && (
-                    <div className="mb-2">
-                      <div className="font-medium text-red-600 mb-1">✗ Non-Matching Fields:</div>
-                      <div className="flex flex-wrap gap-1">
-                        {(selectedEdge || hoveredEdge)!.nonMatchingFields.map((field: string, idx: number) => (
-                          <span key={idx} className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">
-                            {field}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                  )
+                })()}
 
                 <hr className="my-3" />
 
-                {/* Show the actual values being compared */}
+                {/* Pipeline Data Display - No Computations */}
+                {(() => {
+                  const currentEdge = selectedEdge || hoveredEdge
+                  if (!currentEdge || !currentEdge.results || currentEdge.results.length === 0) return null
+                  
+                  return (
+                    <>
+                      <div className="text-xs font-semibold text-gray-700 mb-2">📊 Pipeline Data Summary:</div>
+                      <div className="text-xs text-gray-600 mb-2">
+                        All data sourced from pipeline computation - no UI calculations
+                      </div>
+                      
+
+                      
+
+                      
+                      {/* Field Summary from Pipeline */}
+                      <div className="mt-3 p-2 bg-green-50 rounded border border-green-200 text-xs">
+                        <div className="font-semibold text-green-700 mb-2">📋 Field Summary (Pipeline Data):</div>
+                        <div className="space-y-2">
+                          {currentEdge.matchingFields && currentEdge.matchingFields.length > 0 && (
+                            <div>
+                              <span className="font-medium text-green-600">✓ Matching Fields:</span>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {currentEdge.matchingFields.map((field: string, idx: number) => (
+                                  <span key={idx} className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded">
+                                    {field}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {currentEdge.nonMatchingFields && currentEdge.nonMatchingFields.length > 0 && (
+                            <div>
+                              <span className="font-medium text-red-600">✗ Non-Matching Fields:</span>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {currentEdge.nonMatchingFields.map((field: string, idx: number) => (
+                                  <span key={idx} className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded">
+                                    {field}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )
+                })()}
+
+
+
+                <hr className="my-3" />
+
+                {/* Field Values from Pipeline */}
                 <div className="text-xs text-gray-400">
-                  <div className="font-medium mb-2">Field Comparison:</div>
+                  <div className="font-medium mb-2">Field Values (Pipeline Data):</div>
                   <div className="grid grid-cols-3 gap-2">
                     <div className="font-semibold">Field</div>
                     <div className="font-semibold">Value 1</div>
                     <div className="font-semibold">Value 2</div>
                     {['salutation', 'firstName', 'lastName', 'email', 'phone', 'party'].map((field) => {
-                      const fromNode = getNodeByRecordId((selectedEdge || hoveredEdge)!.from)
-                      const toNode = getNodeByRecordId((selectedEdge || hoveredEdge)!.to)
+                      const currentEdge = selectedEdge || hoveredEdge
+                      if (!currentEdge) return null
+                      
+                      const fromNode = getNodeByRecordId(currentEdge.from)
+                      const toNode = getNodeByRecordId(currentEdge.to)
                       const fromValue = fromNode?.[field as keyof typeof fromNode] || "—"
                       const toValue = toNode?.[field as keyof typeof toNode] || "—"
-                      
-                      // Use match API data instead of calculating
-                      const isInMatchingFields = (selectedEdge || hoveredEdge)!.matchingFields.includes(field)
-                      const isInNonMatchingFields = (selectedEdge || hoveredEdge)!.nonMatchingFields.includes(field)
-                      
-                      let textColor = 'text-gray-300' // Default for empty/missing
-                      if (fromValue !== "—" && toValue !== "—") {
-                        if (isInMatchingFields) {
-                          textColor = 'text-green-400'
-                        } else if (isInNonMatchingFields) {
-                          textColor = 'text-red-400'
-                        } else {
-                          textColor = 'text-gray-400' // Neutral (not evaluated)
-                        }
-                      }
                       
                       return (
                         <div key={field} className="contents">
                           <div className="capitalize py-1">{field}:</div>
-                          <div className={`py-1 ${textColor}`}>{fromValue}</div>
-                          <div className={`py-1 ${textColor}`}>{toValue}</div>
+                          <div className="py-1 text-gray-400">{fromValue}</div>
+                          <div className="py-1 text-gray-400">{toValue}</div>
                         </div>
                       )
                     })}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          )}
 
-          {/* Match Rules Tree Visualization */}
-          {(selectedEdge || hoveredEdge) && (
-            <Card className="mb-2">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-semibold text-gray-700">Match Rules Hierarchy</CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs">
-                <RenderMatchRules rules={matchRules} />
+
               </CardContent>
             </Card>
           )}
@@ -689,4 +1296,4 @@ export default function GraphExplorerRefactored() {
       </div>
     </div>
   )
-} 
+}

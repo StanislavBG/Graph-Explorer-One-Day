@@ -2,7 +2,6 @@
 
 export interface NodeData {
   recordId: string
-  uuid: string
   clusterId?: number
   salutation?: string
   firstName?: string
@@ -25,6 +24,7 @@ export interface Edge {
   nonMatchingFields: string[]
   rulesUsed: string[][]
   matchScore: number
+  results?: any[] // Store actual rule evaluation results for display
 }
 
 export interface UnifiedEdge {

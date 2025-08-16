@@ -16,6 +16,7 @@ interface GraphVisualizationProps {
   onEdgeHover: (edge: Edge | null) => void
   onEdgeClick: (edge: Edge | null) => void
   onMouseLeave: () => void
+  onEmptyAreaClick: () => void
   hoveredNode: NodeData | null
   selectedNode: NodeData | null
   hoveredEdge: Edge | null
@@ -34,6 +35,7 @@ export function GraphVisualization({
   onEdgeHover,
   onEdgeClick,
   onMouseLeave,
+  onEmptyAreaClick,
   hoveredNode,
   selectedNode,
   hoveredEdge,
@@ -41,7 +43,7 @@ export function GraphVisualization({
   getNodeColor
 }: GraphVisualizationProps) {
   return (
-    <GraphContainer layout={layout}>
+    <GraphContainer layout={layout} onEmptyAreaClick={onEmptyAreaClick}>
       {/* Render edges first (behind nodes) */}
       <EdgeRenderer
         edges={edges}
@@ -53,6 +55,7 @@ export function GraphVisualization({
         onMouseLeave={onMouseLeave}
         hoveredEdge={hoveredEdge}
         selectedEdge={selectedEdge}
+        hoveredNode={hoveredNode}
       />
       
       {/* Render nodes on top */}

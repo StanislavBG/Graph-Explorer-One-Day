@@ -1,133 +1,127 @@
 // Rule Evaluator - Pure rule evaluation logic, no visualization
-import { MatchRule, RuleEvalResult, RuleEvaluationContext, RuleEvaluationResult } from '@/types/match-rules'
+import { MatchRule, RuleEvalResult, RuleEvaluationResult } from '@/types/match-rules'
 import { NodeData } from '@/types/common'
 import { matchRules } from './MatchRules'
 
-// Helper function to check for conflicts between two nodes
-export function checkForConflicts(node1: any, node2: any): boolean {
-  // Check for firstName conflicts (only defined vs defined conflicts)
-  const hasFirstNameConflict = (node1.firstName !== undefined && node1.firstName !== "" && 
-                               node2.firstName !== undefined && node2.firstName !== "" && 
-                               node1.firstName !== node2.firstName)
-  
-  // Check for lastName conflicts (only defined vs defined conflicts)
-  const hasLastNameConflict = (node1.lastName !== undefined && node1.lastName !== "" && 
-                              node2.lastName !== undefined && node2.lastName !== "" && 
-                              node1.lastName !== node2.lastName)
-  
-  return hasFirstNameConflict || hasLastNameConflict
-}
+// ============================================================================
+// SINGLE RULE EVALUATION - Pure logic for evaluating one individual rule
+// ============================================================================
 
-// Helper function to find conflicting fields between two nodes
-export function findConflictingFields(node1: any, node2: any): string[] {
-  const conflicts: string[] = []
-  
-  // Check firstName conflicts
-  if (node1.firstName !== undefined && node1.firstName !== "" && 
-      node2.firstName !== undefined && node2.firstName !== "" && 
-      node1.firstName !== node2.firstName) {
-    conflicts.push("firstName")
-  }
-  
-  // Check lastName conflicts
-  if (node1.lastName !== undefined && node1.lastName !== "" && 
-      node2.lastName !== undefined && node2.lastName !== "" && 
-      node1.lastName !== node2.lastName) {
-    conflicts.push("lastName")
-  }
-  
-  return conflicts
-}
-
-// SIMPLIFIED Rule Evaluation - following user specifications exactly
-export function evaluateRuleAll(
-  rule: MatchRule, 
-  node1: any, 
-  node2: any, 
-  path: string[] = []
-): RuleEvalResult[] {
-  // Check if all fields are present in both nodes
-  const missing = rule.fields.filter(f => {
-    const val1 = node1[f]
-    const val2 = node2[f]
-    // Field is missing if it's null, undefined, or empty string
-    return val1 == null || val2 == null || val1 === undefined || val2 === undefined || val1 === "" || val2 === ""
-  })
-  
-  // If any field is missing, rule evaluates to NEUTRAL (0)
-  if (missing.length > 0) {
-    // Try children rules (OR logic)
-    let results: RuleEvalResult[] = []
-    for (const child of rule.children || []) {
-      const childResults = evaluateRuleAll(child, node1, node2, [...path, rule.name])
-      results = results.concat(childResults)
-    }
-    
-    if (results.length > 0) {
-      return results
-    }
-    
-    // No children or all children neutral - return neutral
-    return [{ 
-      status: "neutral", 
-      matchingFields: [],
-      nonMatchingFields: [],
-      missingFields: missing,
-      rulesUsed: [[...path, rule.name]]
-    }]
-  }
-  
-  // All fields present - now check for conflicts
+// Evaluate a single rule in isolation - no children, no scoring, just rule status
+export function evaluateSingleRule(rule: MatchRule, node1: NodeData, node2: NodeData): RuleEvalResult {
   const matchingFields: string[] = []
   const nonMatchingFields: string[] = []
+  const missing: string[] = []
   
+  // Single loop to evaluate all fields
   for (const f of rule.fields) {
-    const val1 = node1[f]
-    const val2 = node2[f]
+    const val1 = (node1 as any)[f]
+    const val2 = (node2 as any)[f]
     
-    if (val1 === val2) {
-      matchingFields.push(f)
+    // Check if field is missing (null, undefined, or empty string)
+    if (val1 == null || val2 == null || val1 === undefined || val2 === undefined || val1 === "" || val2 === "") {
+      missing.push(f)
     } else {
-      nonMatchingFields.push(f)
+      // Field is present - check for match or conflict
+      if (val1 === val2) {
+        matchingFields.push(f)
+      } else {
+        nonMatchingFields.push(f)
+      }
     }
   }
   
-  // Determine result based on user specifications:
-  // - All fields match → POSITIVE (1)
-  // - Any field conflicts → NEGATIVE (-1)
-  // - Any field missing → NEUTRAL (0) - handled above
-  
-  if (nonMatchingFields.length > 0) {
-    // Has conflicts → NEGATIVE
-    return [{ 
+  // Determine result based on field status
+  if (missing.length > 0) {
+    // Any field missing → NEUTRAL
+    return { 
+      status: "neutral", 
+      matchingFields, 
+      nonMatchingFields, 
+      missingFields: missing,
+      rulesUsed: [[rule.name]]
+    }
+  } else if (nonMatchingFields.length > 0) {
+    // All fields present but some conflict → NEGATIVE
+    return { 
       status: "negative", 
       matchingFields, 
       nonMatchingFields, 
       missingFields: [], 
-      rulesUsed: [[...path, rule.name]] 
-    }]
+      rulesUsed: [[rule.name]] 
+    }
   } else {
-    // All fields match → POSITIVE
-    return [{ 
+    // All fields present and match → POSITIVE
+    return { 
       status: "positive", 
       matchingFields, 
       nonMatchingFields: [], 
       missingFields: [], 
-      rulesUsed: [[...path, rule.name]] 
+      rulesUsed: [[rule.name]] 
+    }
+  }
+}
+
+// ============================================================================
+// RULESET EVALUATION - Logic for combining multiple rules and their children
+// ============================================================================
+
+// Evaluate a ruleset with hierarchical logic (OR logic for children)
+export function evaluateRuleset(rule: MatchRule, node1: NodeData, node2: NodeData, path: string[] = []): RuleEvalResult[] {
+  // First, evaluate this single rule in isolation
+  const singleRuleResult = evaluateSingleRule(rule, node1, node2)
+  
+  // Build the complete rule path for this rule
+  const currentPath = [...path, rule.name]
+  
+  // If rule is positive or negative, return it with the complete path
+  if (singleRuleResult.status === "positive" || singleRuleResult.status === "negative") {
+    return [{
+      ...singleRuleResult,
+      rulesUsed: [currentPath],
+      // Store individual rule status for this rule
+      individualRuleStatuses: [{ ruleName: rule.name, status: singleRuleResult.status }]
     }]
   }
+  
+  // Rule is neutral - evaluate children (OR logic)
+  let results: RuleEvalResult[] = []
+  
+  for (const child of rule.children || []) {
+    const childResults = evaluateRuleset(child, node1, node2, currentPath)
+    results = results.concat(childResults)
+  }
+  
+  if (results.length > 0) {
+    // For neutral parents with child results, we need to store the individual rule statuses
+    // so the UI can color each rule correctly
+    return results.map(childResult => ({
+      ...childResult,
+      // Store the individual rule statuses in the path for UI coloring
+      individualRuleStatuses: [
+        { ruleName: rule.name, status: singleRuleResult.status }, // Parent rule status
+        ...(childResult.individualRuleStatuses || []) // Child rule statuses
+      ]
+    }))
+  }
+  
+  // No children or all children neutral - return neutral with complete path
+  return [{
+    ...singleRuleResult,
+    rulesUsed: [currentPath],
+    // Store individual rule status for this rule
+    individualRuleStatuses: [{ ruleName: rule.name, status: singleRuleResult.status }]
+  }]
 }
 
 // Evaluate all rules for a node pair and return comprehensive results
 export function evaluateAllRules(node1: NodeData, node2: NodeData): RuleEvaluationResult {
   const allResults: RuleEvalResult[] = []
   
-  // Import matchRules here to avoid circular dependency
-  // const { matchRules } = require('./MatchRules') // This line is removed
-  
   for (const rule of matchRules) {
     try {
-      allResults.push(...evaluateRuleAll(rule, node1, node2))
+      const ruleResults = evaluateRuleset(rule, node1, node2)
+      allResults.push(...ruleResults)
     } catch (error) {
       console.warn(`Error evaluating rule ${rule.name}:`, error)
       continue

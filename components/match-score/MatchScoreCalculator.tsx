@@ -1,6 +1,7 @@
 // Match Score Calculator - Pure edge calculation logic, no visualization
 import { NodeData, Edge, UnifiedEdge } from '@/types/common'
-import { evaluateAllRules, RuleEvaluationResult } from './RuleEvaluator'
+import { evaluateAllRules } from './RuleEvaluator'
+import { RuleEvaluationResult } from '@/types/match-rules'
 import { matchRules, rulePrecedence } from './MatchRules'
 
 // Generate overall edges based on rule evaluation precedence
@@ -18,6 +19,8 @@ export function calculateEdges(nodeData: NodeData[]): Edge[] {
           // Evaluate all rules to get comprehensive results
           const evaluationResult = evaluateAllRules(node1, node2)
           const allResults = evaluationResult.results
+          
+
           
           // Determine overall edge status based on rule precedence
           let overallStatus: 'positive' | 'negative' | 'neutral' = 'neutral'
@@ -59,14 +62,14 @@ export function calculateEdges(nodeData: NodeData[]): Edge[] {
             }
           }
 
-          // Calculate Match Score based on rule hierarchy
+          // Calculate Match Score based on ALL results (including child rules)
           let matchScore = 0
           let positiveScore = 0
           let negativeScore = 0
           let uniquePositiveRules = new Set<string>()
           
-          for (const ruleResult of ruleResultsByPrecedence) {
-            const ruleLevel = ruleResult.result.rulesUsed[0].length
+          for (const result of allResults) {
+            const ruleLevel = result.rulesUsed[0].length
             // Use correct scoring weights: L1=1.0, L2=0.75, L3=0.5, L4=0.25, L5=0.1
             let ruleWeight: number
             switch (ruleLevel) {
@@ -78,11 +81,11 @@ export function calculateEdges(nodeData: NodeData[]): Edge[] {
               default: ruleWeight = 0.1; break
             }
             
-            if (ruleResult.status === 'positive') {
+            if (result.status === 'positive') {
               positiveScore += ruleWeight
-              const ruleName = ruleResult.result.rulesUsed[0][0]
+              const ruleName = result.rulesUsed[0][0]
               uniquePositiveRules.add(ruleName)
-            } else if (ruleResult.status === 'negative') {
+            } else if (result.status === 'negative') {
               negativeScore += ruleWeight
             }
             // Neutral status contributes 0 to the score
@@ -140,7 +143,8 @@ export function calculateEdges(nodeData: NodeData[]): Edge[] {
           // IMPORTANT: Create edges ONLY when there are positive OR negative rule evaluations
           // This follows the user specification: "An edge should be drawn even if the score is 0 
           // as long one of the sub-trees has a positive or negative match rule evaluated"
-          const hasPositiveOrNegativeRules = ruleResultsByPrecedence.some(r => 
+          // Check ALL results (including child rules) for positive/negative status
+          const hasPositiveOrNegativeRules = allResults.some((r: any) => 
             r.status === 'positive' || r.status === 'negative'
           )
           
@@ -156,20 +160,9 @@ export function calculateEdges(nodeData: NodeData[]): Edge[] {
               edgeType = "mixed"
             }
             
-            // Debug logging for specific node pairs
-            if ((node1.recordId === 'id-006' && node2.recordId === 'id-007') || 
-                (node1.recordId === 'id-007' && node2.recordId === 'id-006')) {
-              console.log(`🚨 EDGE DEBUG - ${node1.recordId} <-> ${node2.recordId}:`)
-              console.log(`   Match Score: ${matchScore.toFixed(3)}`)
-              console.log(`   Overall Status: ${overallStatus}`)
-              console.log(`   Edge Type: ${edgeType}`)
-              console.log(`   Matching Fields: ${matchingFields.join(', ')}`)
-              console.log(`   Non-Matching Fields: ${nonMatchingFields.join(', ')}`)
-              console.log(`   Rules Used: ${rulesUsed.map(r => r.join(' -> ')).join(' | ')}`)
-              console.log(`   POSITIVE SCORE: ${positiveScore.toFixed(3)}`)
-              console.log(`   NEGATIVE SCORE: ${negativeScore.toFixed(3)}`)
-              console.log(`   MULTIPLIER: ${multiplier.toFixed(3)}`)
-            }
+
+            
+
             
             edgeMap.set(
               node1.recordId + '-' + node2.recordId,
@@ -181,6 +174,7 @@ export function calculateEdges(nodeData: NodeData[]): Edge[] {
                 nonMatchingFields,
                 rulesUsed,
                 matchScore: parseFloat(matchScore.toFixed(3)), // Round to 3 decimal places
+                results: allResults, // Store complete rule evaluation results including child rules
               }
             )
             console.log(`EDGE CREATED: ${node1.recordId} <-> ${node2.recordId} | Type: ${edgeType} | Score: ${matchScore.toFixed(3)}`)

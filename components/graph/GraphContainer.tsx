@@ -5,9 +5,10 @@ import { GraphLayout } from '@/types/graph'
 interface GraphContainerProps {
   layout: GraphLayout
   children: React.ReactNode
+  onEmptyAreaClick?: () => void
 }
 
-export function GraphContainer({ layout, children }: GraphContainerProps) {
+export function GraphContainer({ layout, children, onEmptyAreaClick }: GraphContainerProps) {
   const svgRef = useRef<SVGSVGElement | null>(null)
   const [svgSize, setSvgSize] = useState({ width: layout.width, height: layout.height })
 
@@ -36,15 +37,15 @@ export function GraphContainer({ layout, children }: GraphContainerProps) {
         suppressHydrationWarning
         onClick={(e) => {
           // Only clear selection if the click target is the SVG itself (not a node or edge)
-          if (e.target === svgRef.current) {
-            // This will be handled by the parent component
+          if (e.target === svgRef.current && onEmptyAreaClick) {
+            onEmptyAreaClick()
           }
         }}
       >
         {/* SVG Filters for visual effects */}
         <defs>
           <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
             <feMerge> 
               <feMergeNode in="coloredBlur"/>
               <feMergeNode in="SourceGraphic"/>

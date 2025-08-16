@@ -11,7 +11,7 @@ export function useGraphData(
   rightPanelWidth: number
 ) {
   // State for responsive layout
-  const [windowSize, setWindowSize] = useState({ width: 800, height: 600 })
+  const [windowSize, setWindowSize] = useState({ width: 1200, height: 800 }) // More reasonable default
 
   // Handle window resize
   useEffect(() => {
@@ -23,7 +23,7 @@ export function useGraphData(
         })
       }
       
-      // Set initial size
+      // Set initial size immediately
       handleResize()
       
       // Add event listener
@@ -41,7 +41,6 @@ export function useGraphData(
     // Create nodes with basic data
     const basicNodes = currentData.map((record: any, index: number) => ({
       recordId: record["Record-Id"] || `record-${index}`,
-      uuid: `cluster-${index}`,
       salutation: record["Salutation"] || "",
       firstName: record["First Name"] || "",
       lastName: record["Last Name"] || "",
@@ -55,30 +54,16 @@ export function useGraphData(
       y: 0, // Will be calculated based on clustering
     }))
     
-    // Calculate available space for the graph (with SSR safety)
-    const availableWidth = Math.max(800, windowSize.width - leftPanelWidth - rightPanelWidth - 40) // Account for margins/padding
-    const availableHeight = Math.max(600, graphHeight || 600)
-    const centerX = availableWidth / 2
-    const centerY = availableHeight * 0.5 // Center vertically in the available space
-    const radius = Math.min(availableWidth, availableHeight) * 0.35 // Increased radius to use more space
-    
-    basicNodes.forEach((node, index) => {
-      const angle = (index / basicNodes.length) * 2 * Math.PI
-      const nodeRadius = Math.min(availableWidth, availableHeight) * 0.35
-      node.x = Math.cos(angle) * nodeRadius + centerX
-      node.y = Math.sin(angle) * nodeRadius + centerY
-    })
-    
     return basicNodes
-  }, [currentData, graphHeight, leftPanelWidth, rightPanelWidth, windowSize])
+  }, [currentData]) // Only recalculate when data changes, not when window size changes
 
-  // Calculate center and radius dynamically for the graph area only
+  // Calculate layout separately to avoid recalculating nodeData
   const layout = useMemo(() => {
-    const availableWidth = Math.max(800, windowSize.width - leftPanelWidth - rightPanelWidth - 40) // Account for margins/padding
+    const availableWidth = Math.max(800, windowSize.width - leftPanelWidth - rightPanelWidth - 40)
     const availableHeight = Math.max(600, graphHeight || 600)
     const centerX = availableWidth / 2
-    const centerY = availableHeight * 0.5 // Center vertically in the available space
-    const radius = Math.min(availableWidth, availableHeight) * 0.35 // Increased radius to use more space
+    const centerY = availableHeight * 0.5
+    const radius = Math.min(availableWidth, availableHeight) * 0.35
     
     return {
       width: availableWidth,
@@ -89,14 +74,41 @@ export function useGraphData(
     }
   }, [graphHeight, leftPanelWidth, rightPanelWidth, windowSize])
 
-  // Create final node data with computed UUIDs based on clustering
-  const finalNodeData = useMemo(() => {
-    return nodeData
-  }, [nodeData])
+  // Apply layout to nodes without recalculating the base data
+  const positionedNodeData = useMemo(() => {
+    if (nodeData.length === 0) return []
+    
+    // Use conservative dimensions to ensure nodes are always visible
+    const availableWidth = Math.max(600, Math.min(1200, windowSize.width - leftPanelWidth - rightPanelWidth - 40))
+    const availableHeight = Math.max(400, Math.min(800, graphHeight || 600))
+    const centerX = availableWidth / 2
+    const centerY = availableHeight / 2
+    const radius = Math.min(availableWidth, availableHeight) * 0.25 // Very conservative radius
+    
+    const positioned = nodeData.map((node, index) => {
+      const angle = (index / nodeData.length) * 2 * Math.PI
+      return {
+        ...node,
+        x: Math.cos(angle) * radius + centerX,
+        y: Math.sin(angle) * radius + centerY
+      }
+    })
+    
+    // Debug: Log the first few node positions
+    if (positioned.length > 0) {
+      console.log('🔍 Node positioning debug:')
+      console.log('  Available space:', { width: availableWidth, height: availableHeight })
+      console.log('  Center:', { x: centerX, y: centerY })
+      console.log('  Radius:', radius)
+      console.log('  First 3 nodes:', positioned.slice(0, 3).map(n => ({ id: n.recordId, x: n.x, y: n.y })))
+    }
+    
+    return positioned
+  }, [nodeData, graphHeight, leftPanelWidth, rightPanelWidth, windowSize])
 
   return {
     nodeData,
-    finalNodeData,
+    finalNodeData: positionedNodeData,
     layout
   }
 } 

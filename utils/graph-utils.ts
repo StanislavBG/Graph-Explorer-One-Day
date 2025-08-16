@@ -56,7 +56,7 @@ export function lineIntersectsCircle(
 }
 
 /**
- * Draws a straight edge between two nodes with collision avoidance
+ * Draws a straight edge between two nodes
  */
 export function drawStraightEdgeBetweenNodes(
   fromNode: NodeData,
@@ -66,99 +66,35 @@ export function drawStraightEdgeBetweenNodes(
   nodeRadius: number,
   hasCounterpart = false,
 ): string {
-  // Calculate base line from node edge to node edge
-  const dx = toNode.x - fromNode.x
-  const dy = toNode.y - fromNode.y
-  const distance = Math.sqrt(dx * dx + dy * dy)
-  const unitX = dx / distance
-  const unitY = dy / distance
+  // Simple direct line between node centers with small tilt to prevent perfect horizontal/vertical alignment
+  let startX = fromNode.x
+  let startY = fromNode.y
+  let endX = toNode.x
+  let endY = toNode.y
   
-  // Debug: Check if this is a vertical or horizontal edge
-  const isVertical = Math.abs(dx) < 0.001
-  const isHorizontal = Math.abs(dy) < 0.001
-  if (isVertical || isHorizontal) {
-    console.log(`🔍 ${isVertical ? 'VERTICAL' : 'HORIZONTAL'} EDGE: ${fromNode.recordId} -> ${toNode.recordId}`)
-    console.log(`   From: (${fromNode.x}, ${fromNode.y}), To: (${toNode.x}, ${toNode.y})`)
-    console.log(`   Distance: ${distance}, Unit: (${unitX}, ${unitY})`)
+  // Add small tilt (0.01) to prevent perfect horizontal/vertical edges
+  const tiltAmount = 0.01
+  const isHorizontal = Math.abs(startY - endY) < 0.1
+  const isVertical = Math.abs(startX - endX) < 0.1
+  
+  if (isHorizontal) {
+    // Add small vertical tilt to horizontal edges
+    startY += tiltAmount
+    endY += tiltAmount
+  } else if (isVertical) {
+    // Add small horizontal tilt to vertical edges
+    startX += tiltAmount
+    endX += tiltAmount
   }
-
-  // Base connection points at node perimeters
-  const baseStartX = fromNode.x + unitX * nodeRadius
-  const baseStartY = fromNode.y + unitY * nodeRadius
-  const baseEndX = toNode.x - unitX * nodeRadius
-  const baseEndY = toNode.y - unitY * nodeRadius
-
-  // Calculate perpendicular offset for multiple edges between same nodes
-  const perpX = -unitY // Perpendicular to line direction
-  const perpY = unitX
-
-  // Smaller offset for closer spacing between positive and negative edges
-  let offsetAmount = 0
-  if (hasCounterpart) {
-    // Much smaller offset for tighter spacing
-    offsetAmount = edgeType === "positive" ? -3 : 3
+  
+  // Debug: Check if this was a horizontal or vertical edge (before tilt)
+  if (isHorizontal || isVertical) {
+    console.log(`🔍 ${isHorizontal ? 'HORIZONTAL' : 'VERTICAL'} EDGE TILTED: ${fromNode.recordId} -> ${toNode.recordId}`)
+    console.log(`   Original: (${fromNode.x.toFixed(2)}, ${fromNode.y.toFixed(2)}) -> (${toNode.x.toFixed(2)}, ${toNode.y.toFixed(2)})`)
+    console.log(`   Tilted: (${startX.toFixed(2)}, ${startY.toFixed(2)}) -> (${endX.toFixed(2)}, ${endY.toFixed(2)})`)
+    console.log(`   Edge type: ${edgeType}`)
   }
-
-  // Apply offset to create parallel lines
-  let startX = baseStartX + perpX * offsetAmount
-  let startY = baseStartY + perpY * offsetAmount
-  let endX = baseEndX + perpX * offsetAmount
-  let endY = baseEndY + perpY * offsetAmount
-
-  // Check for collisions with other nodes (excluding the two we're connecting)
-  const otherNodes = allNodes.filter(
-    (node) => node.recordId !== fromNode.recordId && node.recordId !== toNode.recordId,
-  )
-
-  let collisionDetected = false
-  for (const node of otherNodes) {
-    if (
-      lineIntersectsCircle({ x: startX, y: startY }, { x: endX, y: endY }, { x: node.x, y: node.y }, nodeRadius + 5)
-    ) {
-      collisionDetected = true
-      if (isVertical || isHorizontal) {
-        console.log(`   ❌ COLLISION with node ${node.recordId} at (${node.x}, ${node.y})`)
-      }
-      break
-    }
-  }
-
-  // If collision detected, try increasing the offset
-  if (collisionDetected) {
-    const maxOffset = 25
-    for (let offset = 10; offset <= maxOffset; offset += 5) {
-      const testOffsetAmount = hasCounterpart ? (edgeType === "positive" ? -offset : offset) : offset
-
-      const testStartX = baseStartX + perpX * testOffsetAmount
-      const testStartY = baseStartY + perpY * testOffsetAmount
-      const testEndX = baseEndX + perpX * testOffsetAmount
-      const testEndY = baseEndY + perpY * testOffsetAmount
-
-      let hasCollision = false
-      for (const node of otherNodes) {
-        if (
-          lineIntersectsCircle(
-            { x: testStartX, y: testStartY },
-            { x: testEndX, y: testEndY },
-            { x: node.x, y: node.y },
-            nodeRadius + 5,
-          )
-        ) {
-          hasCollision = true
-          break
-        }
-      }
-
-      if (!hasCollision) {
-        startX = testStartX
-        startY = testStartY
-        endX = testEndX
-        endY = testEndY
-        break
-      }
-    }
-  }
-
+  
   // Round coordinates to 2 decimal places to prevent hydration mismatches
   const roundedStartX = Math.round(startX * 100) / 100
   const roundedStartY = Math.round(startY * 100) / 100
@@ -166,11 +102,6 @@ export function drawStraightEdgeBetweenNodes(
   const roundedEndY = Math.round(endY * 100) / 100
   
   const path = `M ${roundedStartX} ${roundedStartY} L ${roundedEndX} ${roundedEndY}`
-  
-  if (isVertical || isHorizontal) {
-    console.log(`   ✅ FINAL PATH: ${path}`)
-    console.log(`   📍 Start: (${roundedStartX}, ${roundedStartY}), End: (${roundedEndX}, ${roundedEndY})`)
-  }
   
   return path
 }

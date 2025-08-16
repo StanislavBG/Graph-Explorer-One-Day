@@ -29,34 +29,29 @@ export function useClustering(nodeData: NodeData[], edges: Edge[]) {
     }
   }, [nodeData, edges])
 
-  // Create final node data with computed UUIDs based on clustering
+  // Create final node data with computed cluster assignments
   const finalNodeData = useMemo(() => {
     if (!clusteringResult.assignments || nodeData.length === 0) return nodeData
     
-    // Add clusterId directly to node data and update UUIDs based on clustering
     return nodeData.map(node => {
       const clusterId = clusteringResult.assignments.get(node.recordId)
       return {
         ...node,
-        clusterId: clusterId !== undefined ? clusterId : -1,
-        uuid: clusterId !== undefined ? `cluster-${clusterId}` : `cluster-unknown`
+        clusterId: clusterId !== undefined ? clusterId : -1
       }
     })
   }, [nodeData, clusteringResult.assignments])
 
-  // Get unique UUIDs for display purposes (now based on clustering)
-  const uniqueUUIDs = useMemo(() => {
-    return Array.from(new Set(finalNodeData.map((node) => node.uuid)))
+  // Get unique cluster IDs for display purposes
+  const uniqueClusterIds = useMemo(() => {
+    return Array.from(new Set(finalNodeData.map((node) => node.clusterId).filter(id => id !== -1)))
   }, [finalNodeData])
 
-  // Function to get node color based on cluster
+  // Get node color based on cluster ID
   const getNodeColor = (recordId: string) => {
     if (!recordId) return "#6b7280"
-    
     const node = finalNodeData.find(n => n.recordId === recordId)
     if (!node || node.clusterId === undefined || node.clusterId === -1) return "#6b7280"
-    
-    // Assign colors based on cluster membership
     const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16", "#f97316", "#6366f1"]
     return colors[node.clusterId % colors.length]
   }
@@ -64,7 +59,7 @@ export function useClustering(nodeData: NodeData[], edges: Edge[]) {
   return {
     clusteringResult,
     finalNodeData,
-    uniqueUUIDs,
+    uniqueClusterIds,
     getNodeColor,
     nodeClusters: clusteringResult.assignments,
     clusteringQualityMetrics: clusteringResult.qualityMetrics,
