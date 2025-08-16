@@ -39,7 +39,7 @@ export function useProcessedGraphData(
   const basicNodes = useMemo(() => {
     if (!currentData || currentData.length === 0) return []
     
-    return currentData.map((record: any, index: number) => ({
+    const transformedNodes = currentData.map((record: any, index: number) => ({
       recordId: record["Record-Id"] || `record-${index}`,
       salutation: record["Salutation"] || "",
       firstName: record["First Name"] || "",
@@ -53,6 +53,10 @@ export function useProcessedGraphData(
       x: 0, // Will be calculated in final step
       y: 0, // Will be calculated in final step
     }))
+    
+
+    
+    return transformedNodes
   }, [currentData])
 
   // Step 2: Calculate layout dimensions
