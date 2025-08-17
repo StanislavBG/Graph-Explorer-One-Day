@@ -62,42 +62,8 @@ export function calculateEdges(nodeData: NodeData[]): Edge[] {
             }
           }
 
-          // Calculate Match Score based on ALL results (including child rules)
-          let matchScore = 0
-          let positiveScore = 0
-          let negativeScore = 0
-          let uniquePositiveRules = new Set<string>()
-          
-          for (const result of allResults) {
-            const ruleLevel = result.rulesUsed[0].length
-            // Use correct scoring weights: L1=1.0, L2=0.75, L3=0.5, L4=0.25, L5=0.1
-            let ruleWeight: number
-            switch (ruleLevel) {
-              case 1: ruleWeight = 1.0; break
-              case 2: ruleWeight = 0.75; break
-              case 3: ruleWeight = 0.5; break
-              case 4: ruleWeight = 0.25; break
-              case 5: ruleWeight = 0.1; break
-              default: ruleWeight = 0.1; break
-            }
-            
-            if (result.status === 'positive') {
-              positiveScore += ruleWeight
-              const ruleName = result.rulesUsed[0][0]
-              uniquePositiveRules.add(ruleName)
-            } else if (result.status === 'negative') {
-              negativeScore += ruleWeight
-            }
-            // Neutral status contributes 0 to the score
-          }
-          
-          // Apply multiplicative bonus for multiple UNIQUE positive rules
-          const uniquePositiveRuleCount = uniquePositiveRules.size
-          const multiplier = uniquePositiveRuleCount > 1 ? 1 + (uniquePositiveRuleCount - 1) * 0.1 : 1
-          const adjustedPositiveScore = positiveScore * multiplier
-          
-          // Final match score: adjusted positive - negative
-          matchScore = adjustedPositiveScore - negativeScore
+          // Calculate Match Score based on individual rule scores from evaluateAllRules
+          const matchScore = evaluationResult.totalScore
           
           // Determine overall status based on OR logic across all rule chains
           if (ruleResultsByPrecedence.length > 0) {

@@ -34,6 +34,7 @@ export function performAdvancedClustering(
   // CLUSTERING REQUIREMENTS:
   // 1. Nodes with negative edges must NOT be in the same cluster (STRICT constraint)
   // 2. Nodes that match multiple clusters should prefer the cluster with strongest single edge
+  // 3. Positive edges with highest scores should take priority for clustering
   
   // PASS 1: Create initial clusters based on STRONGEST SINGLE edge strength
   const phase1Result = performPhase1Clustering(nodeData, edges, config)
@@ -82,6 +83,11 @@ function performPhase1Clustering(
     let bestClusterId = -1
     let bestSingleEdgeScore = -Infinity
     
+    // First, check if this node has any very strong positive edges (>2.0) that should take priority
+    const strongEdges = edges.filter(e => 
+      ((e.from === nodeId || e.to === nodeId) && e.matchScore > 2.0)
+    ).sort((a, b) => b.matchScore - a.matchScore)
+    
     // Try adding this node to each existing cluster
     for (const [clusterId, clusterNodes] of initialClusterGroups) {
       let maxSingleEdgeScore = -Infinity
@@ -114,6 +120,22 @@ function performPhase1Clustering(
       if (nodeId === 'id-006' || nodeId === 'id-007') {
         console.log(`🔍 PASS 1 - ${nodeId} joined cluster ${bestClusterId} with strongest edge score ${bestSingleEdgeScore.toFixed(3)}`)
       }
+    } else if (strongEdges.length > 0) {
+      // If no good cluster found but we have strong edges, create a new cluster
+      // and try to pull in the strongly connected nodes
+      initialClusters.set(nodeId, initialClusterId)
+      initialClusterGroups.set(initialClusterId, new Set([nodeId]))
+      
+      // Try to pull in nodes with strong connections
+      for (const edge of strongEdges) {
+        const connectedNodeId = edge.from === nodeId ? edge.to : edge.from
+        if (!initialClusters.has(connectedNodeId)) {
+          initialClusters.set(connectedNodeId, initialClusterId)
+          initialClusterGroups.get(initialClusterId)!.add(connectedNodeId)
+        }
+      }
+      
+      initialClusterId++
     } else {
       // Create new cluster for this node
       initialClusters.set(nodeId, initialClusterId)
@@ -184,10 +206,12 @@ function performPhase2Clustering(
           }
         }
         
-        // Only consider subclusters with NO negative edges
-        if (!hasNegativeEdge && maxSingleEdgeScore > bestSingleEdgeScore) {
-          bestSingleEdgeScore = maxSingleEdgeScore
-          bestClusterIndex = j
+        // Consider subclusters with NO negative edges, prioritizing by edge strength
+        if (!hasNegativeEdge) {
+          if (maxSingleEdgeScore > bestSingleEdgeScore) {
+            bestSingleEdgeScore = maxSingleEdgeScore
+            bestClusterIndex = j
+          }
         }
       }
       
@@ -279,9 +303,12 @@ function performPhase3Clustering(
           if (hasNegativeEdge) break
         }
         
-        // Only merge if NO negative edges exist and positive score is significant
-        if (!hasNegativeEdge && totalPositiveScore > config.positiveThreshold * 2) {
-          console.log(`🔗 PASS 3 - Merging clusters ${cluster1Id} and ${cluster2Id} (pos: ${totalPositiveScore.toFixed(3)}, no neg edges)`)
+        // Merge if positive score is significant, but allow some tolerance for negative edges
+        const shouldMerge = totalPositiveScore > config.positiveThreshold * 2 && 
+                           (!hasNegativeEdge || totalPositiveScore > Math.abs(config.negativeThreshold) * 3)
+        
+        if (shouldMerge) {
+          console.log(`🔗 PASS 3 - Merging clusters ${cluster1Id} and ${cluster2Id} (pos: ${totalPositiveScore.toFixed(3)}, neg edges: ${hasNegativeEdge})`)
           
           // Merge cluster2 into cluster1
           for (const nodeId of cluster2Nodes) {

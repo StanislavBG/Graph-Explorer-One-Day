@@ -31,49 +31,51 @@ export function evaluateSingleRule(rule: MatchRule, node1: NodeData, node2: Node
     }
   }
   
-  // Determine result based on field status
-  if (missing.length > 0) {
-    // Some fields missing - check present fields for conflicts
-    if (nonMatchingFields.length > 0) {
-      // Conflicts found in present fields → NEGATIVE
-      if (rule.name === "Rule-1") {
-        console.log(`🔍 Rule-1 returning NEGATIVE: missing fields + conflicts in present fields`)
-      }
-      return { 
-        status: "negative", 
-        matchingFields, 
-        nonMatchingFields, 
-        missingFields: missing,
-        rulesUsed: [[rule.name]]
-      }
-    } else {
-      // Only matches in present fields → NEUTRAL (no transitivity yet)
-      return { 
-        status: "neutral", 
-        matchingFields, 
-        nonMatchingFields, 
-        missingFields: missing,
-        rulesUsed: [[rule.name]]
-      }
+  // Calculate the score based on your exact specification:
+  const totalFieldsWithValues = matchingFields.length + nonMatchingFields.length
+  
+  if (totalFieldsWithValues === 0) {
+    // All fields are missing (all partial) - NEUTRAL
+    return { 
+      status: "neutral", 
+      matchingFields, 
+      nonMatchingFields, 
+      missingFields: missing,
+      rulesUsed: [[rule.name]],
+      score: 0 // Neutral rules have score 0
     }
+  }
+  
+  // Determine status based on your exact specification:
+  let status: 'positive' | 'negative' | 'neutral'
+  let score = 0
+  
+  if (nonMatchingFields.length === 0 && missing.length === 0) {
+    // All fields matching the rule - +1 POSITIVE
+    status = "positive"
+    score = 1.0
   } else if (nonMatchingFields.length > 0) {
-    // All fields present but some conflict → NEGATIVE
-    return { 
-      status: "negative", 
-      matchingFields, 
-      nonMatchingFields, 
-      missingFields: [], 
-      rulesUsed: [[rule.name]] 
-    }
+    // Some fields not matching but present - NEGATIVE with score -(fields no match)/(total fields with values)
+    status = "negative"
+    score = -(nonMatchingFields.length / totalFieldsWithValues)
+  } else if (matchingFields.length > 0 && missing.length > 0) {
+    // Some fields matching and some are partial - NEUTRAL
+    status = "neutral"
+    score = 0
   } else {
-    // All fields present and match → POSITIVE
-    return { 
-      status: "positive", 
-      matchingFields, 
-      nonMatchingFields, 
-      missingFields: [], 
-      rulesUsed: [[rule.name]] 
-    }
+    // All partial (missing) - NEUTRAL
+    status = "neutral"
+    score = 0
+  }
+  
+  // Store the calculated score in the result
+  return { 
+    status, 
+    matchingFields, 
+    nonMatchingFields, 
+    missingFields: missing,
+    rulesUsed: [[rule.name]],
+    score: score // Add the calculated score
   }
 }
 
@@ -124,6 +126,7 @@ export function evaluateRuleset(rule: MatchRule, node1: NodeData, node2: NodeDat
   return [{
     ...singleRuleResult,
     rulesUsed: [currentPath],
+    score: 0, // Neutral rules have score 0
     // Store individual rule status for this rule
     individualRuleStatuses: [{ ruleName: rule.name, status: singleRuleResult.status }]
   }]
@@ -143,44 +146,28 @@ export function evaluateAllRules(node1: NodeData, node2: NodeData): RuleEvaluati
     }
   }
   
-  // Calculate scores based on user specifications:
-  // L1 rules × 1.0, L2 rules × 0.75, L3 rules × 0.5, L4 rules × 0.25, L5 rules × 0.1
+  // Calculate scores based on individual rule scores from evaluateSingleRule
   let positiveScore = 0
   let negativeScore = 0
   let uniquePositiveRules = new Set<string>()
   
   for (const result of allResults) {
     if (result.status === 'positive' || result.status === 'negative') {
-      const ruleLevel = result.rulesUsed[0].length
-      let ruleWeight: number
-      
-      switch (ruleLevel) {
-        case 1: ruleWeight = 1.0; break
-        case 2: ruleWeight = 0.75; break
-        case 3: ruleWeight = 0.5; break
-        case 4: ruleWeight = 0.25; break
-        case 5: ruleWeight = 0.1; break
-        default: ruleWeight = 0.1; break
-      }
+      // Use the actual score from evaluateSingleRule
+      const ruleScore = result.score || 0
       
       if (result.status === 'positive') {
-        positiveScore += ruleWeight
+        positiveScore += ruleScore
         const ruleName = result.rulesUsed[0][0]
         uniquePositiveRules.add(ruleName)
       } else {
-        negativeScore += ruleWeight
+        negativeScore += ruleScore
       }
     }
   }
   
-  // Apply multiplicative bonus for multiple UNIQUE positive rules
-  // 1.1x for 2+ unique rules, 1.2x for 3+ unique rules, 1.3x for 4+ unique rules, etc.
-  const uniquePositiveRuleCount = uniquePositiveRules.size
-  const multiplier = uniquePositiveRuleCount > 1 ? 1 + (uniquePositiveRuleCount - 1) * 0.1 : 1
-  const adjustedPositiveScore = positiveScore * multiplier
-  
-  // Final total score: adjusted positive - negative
-  const totalScore = adjustedPositiveScore - negativeScore
+  // Final total score: sum of all individual rule scores
+  const totalScore = positiveScore + negativeScore
   
   return {
     results: allResults,
@@ -188,6 +175,6 @@ export function evaluateAllRules(node1: NodeData, node2: NodeData): RuleEvaluati
     positiveScore,
     negativeScore,
     uniquePositiveRules,
-    multiplier
+    multiplier: 1 // No multiplier needed with individual rule scores
   }
 } 

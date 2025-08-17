@@ -1142,36 +1142,90 @@ export default function GraphExplorerRefactored() {
                   )
                 })()}
 
-                {/* Final Match Score Calculation */}
+                {/* Individual Rule Scores */}
                 {(() => {
                   const currentEdge = selectedEdge || hoveredEdge
                   if (!currentEdge || !currentEdge.results || currentEdge.results.length === 0) return null
                   
-                  // Calculate summary statistics
-                  const positiveResults = currentEdge.results.filter((r: any) => r.status === 'positive')
-                  const negativeResults = currentEdge.results.filter((r: any) => r.status === 'negative')
+                  // Group results by top-level rule for cleaner display
+                  const ruleScores = new Map<string, { positive: number; negative: number; total: number; count: number }>()
                   
-                  // Calculate weighted scores
-                  const positiveScore = positiveResults.reduce((sum: number, result: any) => {
-                    const ruleLevel = result.rulesUsed?.[0]?.length || 1
-                    const weight = ruleLevel === 1 ? 1.0 : ruleLevel === 2 ? 0.75 : ruleLevel === 3 ? 0.5 : ruleLevel === 4 ? 0.25 : 0.1
-                    return sum + weight
-                  }, 0)
-                  
-                  const negativeScore = negativeResults.reduce((sum: number, result: any) => {
-                    const ruleLevel = result.rulesUsed?.[0]?.length || 1
-                    const weight = ruleLevel === 1 ? 1.0 : ruleLevel === 2 ? 0.75 : ruleLevel === 3 ? 0.5 : ruleLevel === 4 ? 0.25 : 0.1
-                    return sum + weight
-                  }, 0)
+                  // Group results by leaf rules (the ones that actually get evaluated) - each rule should only appear once
+                  currentEdge.results.forEach((result: any) => {
+                    // Get the leaf rule (last rule in the path) - this is the one that actually gets evaluated
+                    const rulePath = result.rulesUsed?.[0] || []
+                    const leafRule = rulePath[rulePath.length - 1] || 'Unknown'
+                    
+                    if (!ruleScores.has(leafRule)) {
+                      ruleScores.set(leafRule, { positive: 0, negative: 0, total: 0, count: 0 })
+                    }
+                    
+                    const ruleScore = ruleScores.get(leafRule)!
+                    
+                    // Each rule should only contribute once - use the first result we encounter
+                    if (ruleScore.count === 0) {
+                      if (result.status === 'positive') {
+                        ruleScore.positive = result.score || 0
+                      } else if (result.status === 'negative') {
+                        ruleScore.negative = result.score || 0
+                      }
+                      ruleScore.total = ruleScore.positive + ruleScore.negative
+                      ruleScore.count = 1
+                      
+                      // Debug logging to see what's happening
+                      console.log(`Leaf Rule ${leafRule}: status=${result.status}, score=${result.score}, count=${ruleScore.count}`)
+                    }
+                  })
                   
                   return (
-                    <div className="mt-2 p-2 bg-gray-50 rounded border border-gray-200 text-xs">
-                      <div className="font-medium text-gray-700 mb-1">Final Match Score Calculation:</div>
-                      <div className="text-gray-600 space-y-0.5">
-                        <div>• <strong>Positive Rules:</strong> {positiveResults.map((r: any) => r.rulesUsed?.[0]?.[0] || 'Unknown').join(', ')}</div>
-                        <div>• <strong>Negative Rules:</strong> {negativeResults.map((r: any) => r.rulesUsed?.[0]?.[0] || 'Unknown').join(', ') || 'None'}</div>
-                        <div>• <strong>Net Score:</strong> {positiveScore.toFixed(2)} - {negativeScore.toFixed(2)} = {(positiveScore - negativeScore).toFixed(2)}</div>
-                        <div>• <strong>Edge Type:</strong> {(positiveScore - negativeScore) > 0 ? 'POSITIVE' : (positiveScore - negativeScore) < 0 ? 'NEGATIVE' : 'NEUTRAL'}</div>
+                    <div className="mt-2 p-3 bg-blue-50 rounded border border-blue-200 text-xs">
+                      <div className="font-medium text-blue-800 mb-2">📊 Individual Rule Scores:</div>
+                      <div className="space-y-2">
+                        {Array.from(ruleScores.entries()).map(([ruleName, scores]) => (
+                          <div key={ruleName} className="flex items-center justify-between p-2 bg-white rounded border border-blue-100">
+                            <div className="flex-1">
+                              <span className="font-medium text-blue-700">{ruleName}</span>
+                              <span className="text-gray-500 ml-2">({scores.count} evaluations)</span>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                              {/* Show only the total score for each rule */}
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                scores.total > 0 ? 'bg-green-200 text-green-800' : 
+                                scores.total < 0 ? 'bg-red-200 text-red-800' : 
+                                'bg-gray-200 text-gray-800'
+                              }`}>
+                                {scores.total > 0 ? '+' : ''}{scores.total.toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {/* Quick summary at bottom */}
+                      <div className="mt-3 pt-2 border-t border-blue-200">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium text-blue-800">Final Score:</span>
+                          <span className={`px-3 py-1 rounded font-bold ${
+                            currentEdge.matchScore > 0 ? 'bg-green-200 text-green-800' : 
+                            currentEdge.matchScore < 0 ? 'bg-red-200 text-red-800' : 
+                            'bg-gray-200 text-gray-800'
+                          }`}>
+                            {currentEdge.matchScore > 0 ? '+' : ''}{currentEdge.matchScore.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-blue-200">
+                          <div className="flex items-center justify-between text-xs text-blue-600">
+                            <span>Sum of Rule Scores:</span>
+                            <span className={`px-2 py-1 rounded font-medium ${
+                              Array.from(ruleScores.values()).reduce((sum, scores) => sum + scores.total, 0) > 0 ? 'bg-green-100 text-green-700' : 
+                              Array.from(ruleScores.values()).reduce((sum, scores) => sum + scores.total, 0) < 0 ? 'bg-red-100 text-red-700' : 
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {Array.from(ruleScores.values()).reduce((sum, scores) => sum + scores.total, 0) > 0 ? '+' : ''}
+                              {Array.from(ruleScores.values()).reduce((sum, scores) => sum + scores.total, 0).toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )

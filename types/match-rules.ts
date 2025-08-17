@@ -12,6 +12,7 @@ export type RuleEvalResult = {
   nonMatchingFields: string[]
   missingFields: string[]
   rulesUsed: string[][]
+  score: number
   individualRuleStatuses?: Array<{
     ruleName: string
     status: 'positive' | 'negative' | 'neutral'
