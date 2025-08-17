@@ -80,6 +80,22 @@ export function evaluateSingleRule(rule: MatchRule, node1: NodeData, node2: Node
 }
 
 // ============================================================================
+// LEVEL MULTIPLIER - Apply level-based scoring adjustments
+// ============================================================================
+
+// Get level multiplier based on rule depth (L1=1.0, L2=0.75, L3=0.5, L4=0.25, L5=0.1)
+function getLevelMultiplier(level: number): number {
+  switch (level) {
+    case 1: return 1.0    // L1 rules
+    case 2: return 0.75   // L2 rules  
+    case 3: return 0.5    // L3 rules
+    case 4: return 0.25   // L4 rules
+    case 5: return 0.1    // L5 rules
+    default: return 0.1   // L5+ rules
+  }
+}
+
+// ============================================================================
 // RULESET EVALUATION - Logic for combining multiple rules and their children
 // ============================================================================
 
@@ -93,11 +109,34 @@ export function evaluateRuleset(rule: MatchRule, node1: NodeData, node2: NodeDat
   
   // If rule is positive or negative, return it with the complete path
   if (singleRuleResult.status === "positive" || singleRuleResult.status === "negative") {
+    // Apply level multiplier based on rule depth
+    const levelMultiplier = getLevelMultiplier(currentPath.length)
+    const adjustedScore = (singleRuleResult.score || 0) * levelMultiplier
+    
+    // Create individual rule scores for UI display
+    const individualRuleScores = currentPath.map((ruleName, index) => {
+      const level = index + 1
+      const baseScore = index === currentPath.length - 1 ? singleRuleResult.score || 0 : 0
+      const multiplier = getLevelMultiplier(level)
+      const finalScore = baseScore * multiplier
+      
+      return {
+        ruleName,
+        baseScore,
+        multiplier,
+        finalScore,
+        level
+      }
+    })
+    
     return [{
       ...singleRuleResult,
+      score: adjustedScore, // Apply level multiplier
       rulesUsed: [currentPath],
       // Store individual rule status for this rule
-      individualRuleStatuses: [{ ruleName: rule.name, status: singleRuleResult.status }]
+      individualRuleStatuses: [{ ruleName: rule.name, status: singleRuleResult.status }],
+      // Store individual rule scores with multipliers
+      individualRuleScores
     }]
   }
   

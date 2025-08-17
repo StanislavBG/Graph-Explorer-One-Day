@@ -470,7 +470,7 @@ export default function GraphExplorerRefactored() {
 
   // Event handlers
   const handleNodeHover = (node: any) => {
-    setHoveredNode(node?.recordId || null)
+    setHoveredNode(node)
     // Don't clear hoveredEdge - let edges maintain their hover state
     // This allows edges to show hover effects when connected to hovered nodes
     // Both node hover and edge hover can work simultaneously for better UX
@@ -672,6 +672,8 @@ export default function GraphExplorerRefactored() {
             onEmptyAreaClick={() => {
               setSelectedEdge(null)
               setHoveredEdge(null)
+              setSelectedNode(null)
+              setHoveredNode(null)
             }}
             hoveredNode={hoveredNode}
             selectedNode={selectedNode}
@@ -798,7 +800,12 @@ export default function GraphExplorerRefactored() {
                   onMouseLeave={() => setHoveredNode(null)}
                 >
                   <td className="px-3 py-1 border font-mono bg-gray-100 text-gray-600 text-center">{node["Record-Id"]}</td>
-                  <td className="px-3 py-1 border font-mono bg-blue-50 text-blue-700 text-center">—</td>
+                  <td className="px-3 py-1 border font-mono bg-blue-50 text-blue-700 text-center">
+                    {(() => {
+                      const clusterId = nodeClusters.get(node["Record-Id"])
+                      return clusterId !== undefined ? clusterId : "—"
+                    })()}
+                  </td>
                   
                   {/* Editable Salutation */}
                   <td className="px-3 py-1 border text-center">
@@ -1095,9 +1102,45 @@ export default function GraphExplorerRefactored() {
 
                 </div>
 
-                <hr className="my-3" />
+                {/* Level-based Scoring Header - Shows weights that align with rules below */}
+                {(() => {
+                  const currentEdge = selectedEdge || hoveredEdge
+                  if (!currentEdge || !currentEdge.results || currentEdge.results.length === 0) return null
+                  
+                  // Get unique rule levels from the results
+                  const ruleLevels = new Set<number>()
+                  currentEdge.results.forEach((result: any) => {
+                    if (result.individualRuleScores) {
+                      result.individualRuleScores.forEach((irs: any) => {
+                        ruleLevels.add(irs.level)
+                      })
+                    }
+                  })
+                  
+                  if (ruleLevels.size === 0) return null
+                  
+                  return (
+                    <div className="mb-2 p-2 bg-gray-50 rounded border border-gray-200">
+                      <div className="text-xs font-medium text-gray-700 mb-1">⚖️ Rule Level Weights:</div>
+                      <div className="flex items-center space-x-3 text-xs">
+                        {Array.from(ruleLevels).sort().map(level => {
+                          const multiplier = level === 1 ? 1.0 : 
+                                           level === 2 ? 0.75 : 
+                                           level === 3 ? 0.5 : 
+                                           level === 4 ? 0.25 : 0.1
+                          return (
+                            <div key={level} className="flex items-center space-x-1">
+                              <span className="text-gray-500">L{level}:</span>
+                              <span className="font-mono text-blue-600">{multiplier}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })()}
 
-                                {/* Rule Evaluation Tree - WHY the score is what it is */}
+                {/* Rule Evaluation Tree - WHY the score is what it is */}
                 {(() => {
                   const currentEdge = selectedEdge || hoveredEdge
                   if (!currentEdge || !currentEdge.results || currentEdge.results.length === 0) return null
@@ -1147,48 +1190,58 @@ export default function GraphExplorerRefactored() {
                   const currentEdge = selectedEdge || hoveredEdge
                   if (!currentEdge || !currentEdge.results || currentEdge.results.length === 0) return null
                   
-                  // Group results by top-level rule for cleaner display
-                  const ruleScores = new Map<string, { positive: number; negative: number; total: number; count: number }>()
-                  
                   // Group results by leaf rules (the ones that actually get evaluated) - each rule should only appear once
+                  const ruleScores = new Map<string, { positive: number; negative: number; total: number; multiplier: number; baseScore: number }>()
+                  
                   currentEdge.results.forEach((result: any) => {
                     // Get the leaf rule (last rule in the path) - this is the one that actually gets evaluated
                     const rulePath = result.rulesUsed?.[0] || []
                     const leafRule = rulePath[rulePath.length - 1] || 'Unknown'
                     
                     if (!ruleScores.has(leafRule)) {
-                      ruleScores.set(leafRule, { positive: 0, negative: 0, total: 0, count: 0 })
+                      ruleScores.set(leafRule, { positive: 0, negative: 0, total: 0, multiplier: 1, baseScore: 0 })
                     }
                     
                     const ruleScore = ruleScores.get(leafRule)!
                     
                     // Each rule should only contribute once - use the first result we encounter
-                    if (ruleScore.count === 0) {
+                    if (ruleScore.total === 0) {
                       if (result.status === 'positive') {
                         ruleScore.positive = result.score || 0
                       } else if (result.status === 'negative') {
                         ruleScore.negative = result.score || 0
                       }
                       ruleScore.total = ruleScore.positive + ruleScore.negative
-                      ruleScore.count = 1
+                      
+                      // Get multiplier and base score from individualRuleScores if available
+                      if (result.individualRuleScores && result.individualRuleScores.length > 0) {
+                        const leafRuleScore = result.individualRuleScores.find((irs: any) => irs.ruleName === leafRule)
+                        if (leafRuleScore) {
+                          ruleScore.multiplier = leafRuleScore.multiplier
+                          ruleScore.baseScore = leafRuleScore.baseScore
+                        }
+                      }
                       
                       // Debug logging to see what's happening
-                      console.log(`Leaf Rule ${leafRule}: status=${result.status}, score=${result.score}, count=${ruleScore.count}`)
+                      console.log(`Leaf Rule ${leafRule}: status=${result.status}, score=${result.score}, multiplier=${ruleScore.multiplier}, baseScore=${ruleScore.baseScore}`)
                     }
                   })
                   
                   return (
                     <div className="mt-2 p-3 bg-blue-50 rounded border border-blue-200 text-xs">
-                      <div className="font-medium text-blue-800 mb-2">📊 Individual Rule Scores:</div>
+                      <div className="font-medium text-blue-800 mb-2">📊 Pipeline Rule Scores:</div>
                       <div className="space-y-2">
                         {Array.from(ruleScores.entries()).map(([ruleName, scores]) => (
                           <div key={ruleName} className="flex items-center justify-between p-2 bg-white rounded border border-blue-100">
                             <div className="flex-1">
                               <span className="font-medium text-blue-700">{ruleName}</span>
-                              <span className="text-gray-500 ml-2">({scores.count} evaluations)</span>
                             </div>
                             <div className="flex items-center space-x-3">
-                              {/* Show only the total score for each rule */}
+                              {/* Show multiplier × base score for each rule */}
+                              <span className="text-xs text-gray-500">
+                                {scores.multiplier} × {scores.baseScore.toFixed(2)}
+                              </span>
+                              {/* Show the final score for each rule */}
                               <span className={`px-2 py-1 rounded text-xs font-medium ${
                                 scores.total > 0 ? 'bg-green-200 text-green-800' : 
                                 scores.total < 0 ? 'bg-red-200 text-red-800' : 
@@ -1201,10 +1254,10 @@ export default function GraphExplorerRefactored() {
                         ))}
                       </div>
                       
-                      {/* Quick summary at bottom */}
+                      {/* Pipeline final score */}
                       <div className="mt-3 pt-2 border-t border-blue-200">
                         <div className="flex items-center justify-between text-sm">
-                          <span className="font-medium text-blue-800">Final Score:</span>
+                          <span className="font-medium text-blue-800">Pipeline Final Score:</span>
                           <span className={`px-3 py-1 rounded font-bold ${
                             currentEdge.matchScore > 0 ? 'bg-green-200 text-green-800' : 
                             currentEdge.matchScore < 0 ? 'bg-red-200 text-red-800' : 
@@ -1213,19 +1266,6 @@ export default function GraphExplorerRefactored() {
                             {currentEdge.matchScore > 0 ? '+' : ''}{currentEdge.matchScore.toFixed(2)}
                           </span>
                         </div>
-                        <div className="mt-2 pt-2 border-t border-blue-200">
-                          <div className="flex items-center justify-between text-xs text-blue-600">
-                            <span>Sum of Rule Scores:</span>
-                            <span className={`px-2 py-1 rounded font-medium ${
-                              Array.from(ruleScores.values()).reduce((sum, scores) => sum + scores.total, 0) > 0 ? 'bg-green-100 text-green-700' : 
-                              Array.from(ruleScores.values()).reduce((sum, scores) => sum + scores.total, 0) < 0 ? 'bg-red-100 text-red-700' : 
-                              'bg-gray-100 text-gray-700'
-                            }`}>
-                              {Array.from(ruleScores.values()).reduce((sum, scores) => sum + scores.total, 0) > 0 ? '+' : ''}
-                              {Array.from(ruleScores.values()).reduce((sum, scores) => sum + scores.total, 0).toFixed(2)}
-                            </span>
-                          </div>
-                        </div>
                       </div>
                     </div>
                   )
@@ -1233,87 +1273,7 @@ export default function GraphExplorerRefactored() {
 
                 <hr className="my-3" />
 
-                {/* Pipeline Data Display - No Computations */}
-                {(() => {
-                  const currentEdge = selectedEdge || hoveredEdge
-                  if (!currentEdge || !currentEdge.results || currentEdge.results.length === 0) return null
-                  
-                  return (
-                    <>
-                      <div className="text-xs font-semibold text-gray-700 mb-2">📊 Pipeline Data Summary:</div>
-                      <div className="text-xs text-gray-600 mb-2">
-                        All data sourced from pipeline computation - no UI calculations
-                      </div>
-                      
-
-                      
-
-                      
-                      {/* Field Summary from Pipeline */}
-                      <div className="mt-3 p-2 bg-green-50 rounded border border-green-200 text-xs">
-                        <div className="font-semibold text-green-700 mb-2">📋 Field Summary (Pipeline Data):</div>
-                        <div className="space-y-2">
-                          {currentEdge.matchingFields && currentEdge.matchingFields.length > 0 && (
-                            <div>
-                              <span className="font-medium text-green-600">✓ Matching Fields:</span>
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {currentEdge.matchingFields.map((field: string, idx: number) => (
-                                  <span key={idx} className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded">
-                                    {field}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {currentEdge.nonMatchingFields && currentEdge.nonMatchingFields.length > 0 && (
-                            <div>
-                              <span className="font-medium text-red-600">✗ Non-Matching Fields:</span>
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {currentEdge.nonMatchingFields.map((field: string, idx: number) => (
-                                  <span key={idx} className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded">
-                                    {field}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </>
-                  )
-                })()}
-
-
-
-                <hr className="my-3" />
-
-                {/* Field Values from Pipeline */}
-                <div className="text-xs text-gray-400">
-                  <div className="font-medium mb-2">Field Values (Pipeline Data):</div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="font-semibold">Field</div>
-                    <div className="font-semibold">Value 1</div>
-                    <div className="font-semibold">Value 2</div>
-                    {['salutation', 'firstName', 'lastName', 'email', 'phone', 'party'].map((field) => {
-                      const currentEdge = selectedEdge || hoveredEdge
-                      if (!currentEdge) return null
-                      
-                      const fromNode = getNodeByRecordId(currentEdge.from)
-                      const toNode = getNodeByRecordId(currentEdge.to)
-                      const fromValue = fromNode?.[field as keyof typeof fromNode] || "—"
-                      const toValue = toNode?.[field as keyof typeof toNode] || "—"
-                      
-                      return (
-                        <div key={field} className="contents">
-                          <div className="capitalize py-1">{field}:</div>
-                          <div className="py-1 text-gray-400">{fromValue}</div>
-                          <div className="py-1 text-gray-400">{toValue}</div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
+                {/* Removed redundant panels - user can see this information elsewhere */}
 
 
               </CardContent>

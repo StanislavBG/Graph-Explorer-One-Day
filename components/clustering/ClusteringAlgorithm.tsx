@@ -11,10 +11,10 @@ export const defaultClusteringConfig: ClusteringConfig = {
   optimizationPasses: 3
 }
 
-// Three-pass clustering algorithm: 
-// Pass 1: Find clusters with highest edge strength
-// Pass 2: Apply STRICT negative edge constraints
-// Pass 3: Optimize cluster assignments based on edge strength
+// Improved clustering algorithm that respects highest edge scores:
+// 1. Negative edges are ALWAYS respected - nodes with negative edges never in same cluster
+// 2. When a node matches multiple clusters, prefer the cluster with highest edge score
+// 3. Allow nodes to re-evaluate cluster assignments when better options become available
 export function performAdvancedClustering(
   nodeData: NodeData[], 
   edges: Edge[], 
@@ -29,316 +29,185 @@ export function performAdvancedClustering(
     }
   }
   
-  console.log(`🚀 STARTING THREE-PASS CLUSTERING for ${nodeData.length} nodes`)
+  console.log(`🚀 STARTING IMPROVED CLUSTERING for ${nodeData.length} nodes`)
   
-  // CLUSTERING REQUIREMENTS:
-  // 1. Nodes with negative edges must NOT be in the same cluster (STRICT constraint)
-  // 2. Nodes that match multiple clusters should prefer the cluster with strongest single edge
-  // 3. Positive edges with highest scores should take priority for clustering
+  const assignments = new Map<string, number>()
+  const clusterGroups = new Map<number, Set<string>>()
+  let nextClusterId = 1
   
-  // PASS 1: Create initial clusters based on STRONGEST SINGLE edge strength
-  const phase1Result = performPhase1Clustering(nodeData, edges, config)
-  console.log(`🔗 PASS 1 COMPLETE - Created ${phase1Result.clusterGroups.size} initial clusters`)
+  // Start with first node in its own cluster
+  assignments.set(nodeData[0].recordId, nextClusterId)
+  clusterGroups.set(nextClusterId, new Set([nodeData[0].recordId]))
+  nextClusterId++
   
-  // PASS 2: Apply STRICT negative edge constraints by splitting clusters
-  const phase2Result = performPhase2Clustering(phase1Result, edges, config)
-  console.log(`🔗 PASS 2 COMPLETE - Created ${phase2Result.clusterGroups.size} intermediate clusters`)
+  // For each remaining node, find the best cluster to join
+  for (let i = 1; i < nodeData.length; i++) {
+    const nodeId = nodeData[i].recordId
+    let bestClusterId = -1
+    let bestEdgeScore = -Infinity
+    let bestClusterLowestNodeId = "" // Track the lowest alphanumeric node ID for tie-breaking
+    
+    // Check all existing clusters to find the best match
+    for (const [clusterId, clusterNodes] of clusterGroups) {
+      let maxEdgeScore = -Infinity
+      let hasNegativeEdge = false
+      
+      // Check edges to all nodes in this cluster
+      for (const clusterNodeId of clusterNodes) {
+        const edge = edges.find(e => 
+          ((e.from === nodeId && e.to === clusterNodeId) || 
+           (e.from === clusterNodeId && e.to === nodeId))
+        )
+        
+        if (edge) {
+          if (edge.matchScore < config.negativeThreshold) {
+            // STRICT CONSTRAINT: Negative edge means this cluster is invalid
+            hasNegativeEdge = true
+            break
+          } else if (edge.matchScore > config.positiveThreshold) {
+            maxEdgeScore = Math.max(maxEdgeScore, edge.matchScore)
+          }
+        }
+      }
+      
+      // If no negative edges and this cluster has a better or equal score, consider it
+      if (!hasNegativeEdge && maxEdgeScore >= bestEdgeScore) {
+        // Find the lowest alphanumeric node ID in this cluster for tie-breaking
+        const lowestNodeId = Array.from(clusterNodes).sort()[0]
+        
+        // If this cluster has a better score, or same score with lower alphanumeric node ID
+        if (maxEdgeScore > bestEdgeScore || 
+            (maxEdgeScore === bestEdgeScore && lowestNodeId < bestClusterLowestNodeId)) {
+          bestEdgeScore = maxEdgeScore
+          bestClusterId = clusterId
+          bestClusterLowestNodeId = lowestNodeId
+        }
+      }
+    }
+    
+    // If we found a good cluster, join it
+    if (bestClusterId !== -1) {
+      assignments.set(nodeId, bestClusterId)
+      clusterGroups.get(bestClusterId)!.add(nodeId)
+      console.log(`🔗 Node ${nodeId} joined cluster ${bestClusterId} with edge score ${bestEdgeScore.toFixed(3)}`)
+    } else {
+      // No good cluster found, create a new one
+      assignments.set(nodeId, nextClusterId)
+      clusterGroups.set(nextClusterId, new Set([nodeId]))
+      console.log(`🔗 Node ${nodeId} created new cluster ${nextClusterId}`)
+      nextClusterId++
+    }
+  }
   
-  // PASS 3: Optimize cluster assignments based on edge strength
-  const phase3Result = performPhase3Clustering(phase2Result, edges, config)
-  console.log(`🔗 PASS 3 COMPLETE - Final result: ${phase3Result.clusterGroups.size} clusters`)
+  // OPTIMIZATION PASS: Re-evaluate cluster assignments to respect highest edge scores
+  console.log(`🔄 OPTIMIZATION PASS: Re-evaluating cluster assignments for highest edge scores`)
+  let optimizationMade = true
+  let optimizationPass = 0
+  
+  while (optimizationMade && optimizationPass < 3) {
+    optimizationMade = false
+    optimizationPass++
+    console.log(`🔄 Optimization pass ${optimizationPass}`)
+    
+    // Check each node to see if it can join a better cluster
+    for (const nodeId of Array.from(assignments.keys())) {
+      const currentClusterId = assignments.get(nodeId)!
+      let bestClusterId = currentClusterId
+      let bestEdgeScore = -Infinity
+      let bestClusterLowestNodeId = "" // Track the lowest alphanumeric node ID for tie-breaking
+      
+      // Find the strongest edge for this node
+      for (const edge of edges) {
+        if (edge.from === nodeId || edge.to === nodeId) {
+          const otherNodeId = edge.from === nodeId ? edge.to : edge.from
+          const otherClusterId = assignments.get(otherNodeId)
+          
+          if (otherClusterId !== undefined && edge.matchScore > config.positiveThreshold) {
+            // Check if this cluster is valid (no negative edges)
+            let hasNegativeEdge = false
+            const targetCluster = clusterGroups.get(otherClusterId)!
+            
+            for (const clusterNodeId of targetCluster) {
+              if (clusterNodeId !== otherNodeId) {
+                const clusterEdge = edges.find(e => 
+                  ((e.from === nodeId && e.to === clusterNodeId) || 
+                   (e.from === clusterNodeId && e.to === nodeId))
+                )
+                if (clusterEdge && clusterEdge.matchScore < config.negativeThreshold) {
+                  hasNegativeEdge = true
+                  break
+                }
+              }
+            }
+            
+            // If no negative edges and this edge is stronger or equal, consider this cluster
+            if (!hasNegativeEdge && edge.matchScore >= bestEdgeScore) {
+              // Find the lowest alphanumeric node ID in this cluster for tie-breaking
+              const lowestNodeId = Array.from(targetCluster).sort()[0]
+              
+              // If this cluster has a better score, or same score with lower alphanumeric node ID
+              if (edge.matchScore > bestEdgeScore || 
+                  (edge.matchScore === bestEdgeScore && lowestNodeId < bestClusterLowestNodeId)) {
+                bestEdgeScore = edge.matchScore
+                bestClusterId = otherClusterId
+                bestClusterLowestNodeId = lowestNodeId
+              }
+            }
+          }
+        }
+      }
+      
+      // If we found a better cluster, move the node
+      if (bestClusterId !== currentClusterId) {
+        // Remove from current cluster
+        const currentCluster = clusterGroups.get(currentClusterId)!
+        currentCluster.delete(nodeId)
+        
+        // Add to better cluster
+        const betterCluster = clusterGroups.get(bestClusterId)!
+        betterCluster.add(nodeId)
+        assignments.set(nodeId, bestClusterId)
+        
+        console.log(`🔄 Node ${nodeId} moved from cluster ${currentClusterId} to cluster ${bestClusterId} (edge score: ${bestEdgeScore.toFixed(3)})`)
+        optimizationMade = true
+        
+        // Clean up empty clusters
+        if (currentCluster.size === 0) {
+          clusterGroups.delete(currentClusterId)
+        }
+      }
+    }
+  }
+  
+  // Log final cluster assignments
+  console.log(`🔗 CLUSTERING COMPLETE - Final result: ${clusterGroups.size} clusters`)
+  for (const [clusterId, nodes] of clusterGroups) {
+    console.log(`   Cluster ${clusterId}: ${Array.from(nodes).join(', ')}`)
+  }
   
   // Calculate final quality metrics
-  const qualityMetrics = calculateClusteringQuality(phase3Result, edges, nodeData)
+  const finalPhase: ClusteringPhase = {
+    name: "Final Clustering",
+    description: "Improved clustering with optimization passes for highest edge scores",
+    assignments,
+    clusterGroups
+  }
+  const qualityMetrics = calculateClusteringQuality(finalPhase, edges, nodeData)
   
   // Detect constraint violations
-  const constraintViolations = detectConstraintViolations(phase3Result.assignments, edges)
+  const constraintViolations = detectConstraintViolations(assignments, edges)
   
   return {
-    assignments: phase3Result.assignments,
-    clusterGroups: phase3Result.clusterGroups,
+    assignments,
+    clusterGroups,
     qualityMetrics,
     constraintViolations
   }
 }
 
-// Phase 1: Create initial clusters based on STRONGEST SINGLE edge strength
-function performPhase1Clustering(
-  nodeData: NodeData[], 
-  edges: Edge[], 
-  config: ClusteringConfig
-): ClusteringPhase {
-  const initialClusters = new Map<string, number>()
-  const initialClusterGroups = new Map<number, Set<string>>()
-  let initialClusterId = 1
-  
-  // Start with first node in its own cluster
-  initialClusters.set(nodeData[0].recordId, initialClusterId)
-  initialClusterGroups.set(initialClusterId, new Set([nodeData[0].recordId]))
-  initialClusterId++
-  
-  // For each remaining node, find the best cluster to join based on STRONGEST SINGLE edge
-  for (let i = 1; i < nodeData.length; i++) {
-    const nodeId = nodeData[i].recordId
-    let bestClusterId = -1
-    let bestSingleEdgeScore = -Infinity
-    
-    // First, check if this node has any very strong positive edges (>2.0) that should take priority
-    const strongEdges = edges.filter(e => 
-      ((e.from === nodeId || e.to === nodeId) && e.matchScore > 2.0)
-    ).sort((a, b) => b.matchScore - a.matchScore)
-    
-    // Try adding this node to each existing cluster
-    for (const [clusterId, clusterNodes] of initialClusterGroups) {
-      let maxSingleEdgeScore = -Infinity
-      
-      // Find the STRONGEST SINGLE edge with any node in this cluster
-      for (const existingNodeId of clusterNodes) {
-        const edge = edges.find(e => 
-          ((e.from === nodeId && e.to === existingNodeId) || 
-           (e.from === existingNodeId && e.to === nodeId))
-        )
-        
-        if (edge && edge.matchScore > config.positiveThreshold) {
-          maxSingleEdgeScore = Math.max(maxSingleEdgeScore, edge.matchScore)
-        }
-      }
-      
-      // If this cluster has a stronger single edge, remember it
-      if (maxSingleEdgeScore > bestSingleEdgeScore) {
-        bestSingleEdgeScore = maxSingleEdgeScore
-        bestClusterId = clusterId
-      }
-    }
-    
-    // If we found a good cluster (positive score), join it
-    if (bestSingleEdgeScore > config.positiveThreshold) {
-      initialClusters.set(nodeId, bestClusterId)
-      initialClusterGroups.get(bestClusterId)!.add(nodeId)
-      
-      // Debug logging for specific nodes
-      if (nodeId === 'id-006' || nodeId === 'id-007') {
-        console.log(`🔍 PASS 1 - ${nodeId} joined cluster ${bestClusterId} with strongest edge score ${bestSingleEdgeScore.toFixed(3)}`)
-      }
-    } else if (strongEdges.length > 0) {
-      // If no good cluster found but we have strong edges, create a new cluster
-      // and try to pull in the strongly connected nodes
-      initialClusters.set(nodeId, initialClusterId)
-      initialClusterGroups.set(initialClusterId, new Set([nodeId]))
-      
-      // Try to pull in nodes with strong connections
-      for (const edge of strongEdges) {
-        const connectedNodeId = edge.from === nodeId ? edge.to : edge.from
-        if (!initialClusters.has(connectedNodeId)) {
-          initialClusters.set(connectedNodeId, initialClusterId)
-          initialClusterGroups.get(initialClusterId)!.add(connectedNodeId)
-        }
-      }
-      
-      initialClusterId++
-    } else {
-      // Create new cluster for this node
-      initialClusters.set(nodeId, initialClusterId)
-      initialClusterGroups.set(initialClusterId, new Set([nodeId]))
-      initialClusterId++
-    }
-  }
-  
-  // Debug: Show initial cluster assignments
-  console.log(`🔍 PASS 1 - Initial cluster assignments:`)
-  for (const [clusterId, nodes] of initialClusterGroups) {
-    console.log(`   Cluster ${clusterId}: ${Array.from(nodes).join(', ')}`)
-  }
-  
-  return {
-    name: "Initial Clustering",
-    description: "Create initial clusters based on strongest single edge strength",
-    assignments: initialClusters,
-    clusterGroups: initialClusterGroups
-  }
-}
 
-// Phase 2: Apply STRICT negative edge constraints by splitting clusters
-function performPhase2Clustering(
-  phase1Result: ClusteringPhase, 
-  edges: Edge[], 
-  config: ClusteringConfig
-): ClusteringPhase {
-  const intermediateClusters = new Map<string, number>()
-  const intermediateClusterGroups = new Map<number, Set<string>>()
-  let intermediateClusterId = 1
-  
-  for (const [clusterId, nodes] of phase1Result.clusterGroups) {
-    const nodeArray = Array.from(nodes)
-    const validSubclusters: Set<string>[] = []
-    
-    // Start with the first node in its own subcluster
-    validSubclusters.push(new Set([nodeArray[0]]))
-    
-    // Assign remaining nodes to subclusters based on STRICT negative edge constraints
-    for (let i = 1; i < nodeArray.length; i++) {
-      const nodeId = nodeArray[i]
-      let bestClusterIndex = -1
-      let bestSingleEdgeScore = -Infinity
-      
-      // Find the subcluster that doesn't have negative edge constraints
-      for (let j = 0; j < validSubclusters.length; j++) {
-        const subcluster = validSubclusters[j]
-        
-        // Check if this node has negative edges to any node in this subcluster
-        let hasNegativeEdge = false
-        let maxSingleEdgeScore = -Infinity
-        
-        for (const existingNodeId of subcluster) {
-          const edge = edges.find(e => 
-            ((e.from === nodeId && e.to === existingNodeId) || 
-             (e.from === existingNodeId && e.to === nodeId))
-          )
-          
-          if (edge) {
-            if (edge.matchScore < config.negativeThreshold) {
-              // STRICT CONSTRAINT: Any negative edge means this subcluster is invalid
-              hasNegativeEdge = true
-              break
-            } else if (edge.matchScore > config.positiveThreshold) {
-              maxSingleEdgeScore = Math.max(maxSingleEdgeScore, edge.matchScore)
-            }
-          }
-        }
-        
-        // Consider subclusters with NO negative edges, prioritizing by edge strength
-        if (!hasNegativeEdge) {
-          if (maxSingleEdgeScore > bestSingleEdgeScore) {
-            bestSingleEdgeScore = maxSingleEdgeScore
-            bestClusterIndex = j
-          }
-        }
-      }
-      
-      // Add node to best subcluster or create new one if no good fit
-      if (bestClusterIndex >= 0) {
-        validSubclusters[bestClusterIndex].add(nodeId)
-      } else {
-        validSubclusters.push(new Set([nodeId]))
-      }
-    }
-    
-    // Assign intermediate cluster IDs to valid subclusters
-    for (const subcluster of validSubclusters) {
-      for (const nodeId of subcluster) {
-        intermediateClusters.set(nodeId, intermediateClusterId)
-      }
-      intermediateClusterGroups.set(intermediateClusterId, subcluster)
-      intermediateClusterId++
-    }
-  }
-  
-  // Debug: Show intermediate cluster assignments after applying negative constraints
-  console.log(`🔍 PASS 2 - Intermediate clusters after negative edge constraints:`)
-  for (const [clusterId, nodes] of intermediateClusterGroups) {
-    console.log(`   Cluster ${clusterId}: ${Array.from(nodes).join(', ')}`)
-  }
-  
-  return {
-    name: "Strict Constraint Application",
-    description: "Apply STRICT negative edge constraints by splitting clusters",
-    assignments: intermediateClusters,
-    clusterGroups: intermediateClusterGroups
-  }
-}
 
-// Phase 3: Optimize cluster assignments based on edge strength
-function performPhase3Clustering(
-  phase2Result: ClusteringPhase, 
-  edges: Edge[], 
-  config: ClusteringConfig
-): ClusteringPhase {
-  const finalClusters = new Map<string, number>()
-  const finalClusterGroups = new Map<number, Set<string>>()
-  let finalClusterId = 1
-  
-  // Start with all intermediate clusters
-  for (const [clusterId, nodes] of phase2Result.clusterGroups) {
-    finalClusterGroups.set(finalClusterId, new Set(nodes))
-    for (const nodeId of nodes) {
-      finalClusters.set(nodeId, finalClusterId)
-    }
-    finalClusterId++
-  }
-  
-  // Try to merge clusters that have strong positive connections AND NO negative connections
-  let merged = true
-  let mergeAttempts = 0
-  const maxMergeAttempts = config.optimizationPasses
-  
-  while (merged && mergeAttempts < maxMergeAttempts) {
-    merged = false
-    mergeAttempts++
-    
-    for (const [cluster1Id, cluster1Nodes] of finalClusterGroups) {
-      for (const [cluster2Id, cluster2Nodes] of finalClusterGroups) {
-        if (cluster1Id >= cluster2Id) continue // Skip same cluster and already processed pairs
-        
-        // Check if these clusters should be merged based on strong positive connections
-        let totalPositiveScore = 0
-        let hasNegativeEdge = false
-        
-        for (const node1Id of cluster1Nodes) {
-          for (const node2Id of cluster2Nodes) {
-            const edge = edges.find(e => 
-              ((e.from === node1Id && e.to === node2Id) || 
-               (e.from === node2Id && e.to === node1Id))
-            )
-            
-            if (edge) {
-              if (edge.matchScore > config.positiveThreshold) {
-                totalPositiveScore += edge.matchScore
-              } else if (edge.matchScore < config.negativeThreshold) {
-                // STRICT CONSTRAINT: Any negative edge prevents merging
-                hasNegativeEdge = true
-                break
-              }
-            }
-          }
-          if (hasNegativeEdge) break
-        }
-        
-        // Merge if positive score is significant, but allow some tolerance for negative edges
-        const shouldMerge = totalPositiveScore > config.positiveThreshold * 2 && 
-                           (!hasNegativeEdge || totalPositiveScore > Math.abs(config.negativeThreshold) * 3)
-        
-        if (shouldMerge) {
-          console.log(`🔗 PASS 3 - Merging clusters ${cluster1Id} and ${cluster2Id} (pos: ${totalPositiveScore.toFixed(3)}, neg edges: ${hasNegativeEdge})`)
-          
-          // Merge cluster2 into cluster1
-          for (const nodeId of cluster2Nodes) {
-            finalClusters.set(nodeId, cluster1Id)
-            cluster1Nodes.add(nodeId)
-          }
-          
-          // Remove cluster2
-          finalClusterGroups.delete(cluster2Id)
-          merged = true
-          break
-        }
-      }
-      if (merged) break
-    }
-  }
-  
-  // Debug: Show final cluster assignments
-  console.log(`🔍 PASS 3 - Final cluster assignments:`)
-  for (const [clusterId, nodes] of finalClusterGroups) {
-    console.log(`   Final Cluster ${clusterId}: ${Array.from(nodes).join(', ')}`)
-  }
-  
-  return {
-    name: "Optimization",
-    description: "Optimize cluster assignments based on edge strength with strict negative constraints",
-    assignments: finalClusters,
-    clusterGroups: finalClusterGroups
-  }
-}
+
 
 // Calculate clustering quality metrics
 function calculateClusteringQuality(

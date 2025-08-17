@@ -17,6 +17,14 @@ export type RuleEvalResult = {
     ruleName: string
     status: 'positive' | 'negative' | 'neutral'
   }>
+  // Add individual rule scores with multipliers for UI display
+  individualRuleScores?: Array<{
+    ruleName: string
+    baseScore: number
+    multiplier: number
+    finalScore: number
+    level: number
+  }>
 }
 
 export interface RuleEvaluationContext {
